@@ -35,7 +35,7 @@ export function getOrCreateWaClient(ulpId: string): Client {
     puppeteer: {
       headless: true,
       executablePath: process.env.CHROME_PATH || undefined,
-      protocolTimeout: 120000,
+      protocolTimeout: 300000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
