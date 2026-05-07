@@ -1,7 +1,12 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  serverExternalPackages: [
+    'whatsapp-web.js',
+    'puppeteer',
+    'puppeteer-core',
+    'unzipper',
+  ],
+}
 
-export default nextConfig;
+export default nextConfig

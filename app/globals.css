@@ -1,26 +1,141 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* PLN Brand Colors */
+  --color-pln-blue: #003B8E;
+  --color-pln-blue-mid: #0070C0;
+  --color-pln-yellow: #FFD200;
+  --color-pln-red: #E4002B;
+  --color-pln-orange: #F5A623;
+  --color-pln-green: #1DB954;
+
+  /* Neobrutalism Base */
+  --color-neo-black: #1A1A1A;
+  --color-neo-white: #FAFAFA;
+  --color-neo-gray: #E5E5E5;
+  --color-neo-gray-dark: #CCCCCC;
+
+  /* Semantic */
+  --color-background: var(--color-neo-white);
+  --color-foreground: var(--color-neo-black);
+  --color-surface: #FFFFFF;
+  --color-border: var(--color-neo-black);
+
+  /* Fonts */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Shadows (Neobrutalism) */
+  --shadow-neo-sm: 2px 2px 0px #1A1A1A;
+  --shadow-neo: 4px 4px 0px #1A1A1A;
+  --shadow-neo-lg: 6px 6px 0px #1A1A1A;
+  --shadow-neo-xl: 8px 8px 0px #1A1A1A;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #FAFAFA;
+  color: #1A1A1A;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Neobrutalism utility classes */
+.neo-border {
+  border: 2px solid #1A1A1A;
+}
+
+.neo-border-thick {
+  border: 3px solid #1A1A1A;
+}
+
+.neo-shadow {
+  box-shadow: 4px 4px 0px #1A1A1A;
+}
+
+.neo-shadow-sm {
+  box-shadow: 2px 2px 0px #1A1A1A;
+}
+
+.neo-shadow-lg {
+  box-shadow: 6px 6px 0px #1A1A1A;
+}
+
+.neo-card {
+  border: 2px solid #1A1A1A;
+  box-shadow: 4px 4px 0px #1A1A1A;
+  background-color: #FFFFFF;
+}
+
+.neo-button {
+  border: 2px solid #1A1A1A;
+  box-shadow: 3px 3px 0px #1A1A1A;
+  transition: all 0.1s ease;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.neo-button:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px #1A1A1A;
+}
+
+.neo-button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1A1A1A;
+}
+
+.neo-input {
+  border: 2px solid #1A1A1A;
+  box-shadow: 2px 2px 0px #1A1A1A;
+  background-color: #FFFFFF;
+  outline: none;
+  transition: box-shadow 0.1s ease;
+}
+
+.neo-input:focus {
+  box-shadow: 4px 4px 0px #003B8E;
+  border-color: #003B8E;
+}
+
+/* Status colors */
+.status-lapor {
+  background-color: #E4002B;
+  color: #FFFFFF;
+}
+
+.status-ditangani {
+  background-color: #0070C0;
+  color: #FFFFFF;
+}
+
+.status-nyala-sementara {
+  background-color: #FFD200;
+  color: #1A1A1A;
+}
+
+.status-selesai {
+  background-color: #1DB954;
+  color: #FFFFFF;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #E5E5E5;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1A1A1A;
+  border: 1px solid #E5E5E5;
 }

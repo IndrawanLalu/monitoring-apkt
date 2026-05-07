@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# WhatsApp sessions (data sensitif)
+wa-sessions/
+
+# OS
+Thumbs.db
