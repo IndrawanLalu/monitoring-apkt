@@ -5,41 +5,26 @@ import { createClient } from '@/lib/supabase/client'
 import type { Laporan } from '@/types'
 
 interface Options {
-  ulpId: string
+  ulpIds: string[]
   onInsert: (laporan: Laporan) => void
   onUpdate: (laporan: Laporan) => void
 }
 
-export function useRealtimeLaporan({ ulpId, onInsert, onUpdate }: Options) {
+export function useRealtimeLaporan({ ulpIds, onInsert, onUpdate }: Options) {
   useEffect(() => {
+    if (ulpIds.length === 0) return
     const supabase = createClient()
 
-    const channel = supabase
-      .channel(`laporan_${ulpId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'laporan',
-          filter: `ulp_id=eq.${ulpId}`,
-        },
-        (payload) => onInsert(payload.new as Laporan),
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'laporan',
-          filter: `ulp_id=eq.${ulpId}`,
-        },
-        (payload) => onUpdate(payload.new as Laporan),
-      )
-      .subscribe()
+    const channels = ulpIds.map((ulpId) =>
+      supabase
+        .channel(`laporan_${ulpId}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'laporan', filter: `ulp_id=eq.${ulpId}` }, (payload) => onInsert(payload.new as Laporan))
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'laporan', filter: `ulp_id=eq.${ulpId}` }, (payload) => onUpdate(payload.new as Laporan))
+        .subscribe()
+    )
 
     return () => {
-      supabase.removeChannel(channel)
+      channels.forEach((c) => supabase.removeChannel(c))
     }
-  }, [ulpId, onInsert, onUpdate])
+  }, [ulpIds.join(','), onInsert, onUpdate])
 }

@@ -1,73 +1,88 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShiftHeader } from '@/components/dashboard/shift-header'
 import { ReguCard } from '@/components/dashboard/regu-card'
 import { Modal } from '@/components/ui/modal'
 import { LaporanForm } from '@/components/laporan/laporan-form'
 import { Button } from '@/components/ui/button'
-import { Select, Textarea } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/input'
 import { StatusBadge } from '@/components/ui/badge'
 import { useRealtimeLaporan } from '@/hooks/use-realtime-laporan'
-import { STATUS_LABEL } from '@/constants'
-import type { Laporan, Regu, Petugas, Piket, Profile, ReguStats, ShiftType, StatusLaporan } from '@/types'
+import { STATUS_LABEL, SHIFT_LABEL, SHIFT_JAM } from '@/constants'
+import type { Laporan, Regu, Petugas, Piket, ReguStats, ShiftType, StatusLaporan } from '@/types'
 import type { CreateLaporanInput } from '@/lib/validations/laporan'
 
-interface Props {
-  profile: Profile & { ulp: { id: string; nama: string; kode: string; wa_grup_id: string | null } }
-  piketList: (Piket & { shift_type: { id: string; nama: ShiftType; jam_mulai: string; jam_selesai: string } })[]
+interface UlpInfo {
+  id: string
+  nama: string
+  kode: string
+  wa_grup_id: string | null
+}
+
+interface UlpData {
+  ulp: UlpInfo
+  piket: (Piket & { shift_type: { id: string; nama: ShiftType; jam_mulai: string; jam_selesai: string } }) | null
   reguList: Regu[]
   petugasList: Petugas[]
   laporanList: Laporan[]
+}
+
+interface Props {
+  profile: { id: string; nama: string; role: string }
+  ulpDataList: UlpData[]
   today: string
 }
 
-export function DashboardClient({ profile, piketList, reguList, petugasList, laporanList: initialLaporan, today }: Props) {
+interface AddModalCtx {
+  reguId: string
+  ulpId: string
+  piketId: string | null
+  reguList: Regu[]
+}
+
+export function DashboardClient({ profile, ulpDataList, today }: Props) {
   const router = useRouter()
-  const [laporanList, setLaporanList] = useState<Laporan[]>(initialLaporan)
 
-  // Add laporan modal
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  const [selectedReguId, setSelectedReguId] = useState<string | undefined>()
+  const [laporanMap, setLaporanMap] = useState<Record<string, Laporan[]>>(
+    () => Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList]))
+  )
 
-  // Update status modal
+  const [addModal, setAddModal] = useState<AddModalCtx | null>(null)
   const [updateModal, setUpdateModal] = useState<Laporan | null>(null)
   const [updateStatus, setUpdateStatus] = useState<StatusLaporan>('lapor')
   const [updateKeterangan, setUpdateKeterangan] = useState('')
   const [updating, setUpdating] = useState(false)
-
-  // WA sending state
   const [sendingWa, setSendingWa] = useState<string | null>(null)
-  const [sendingRekap, setSendingRekap] = useState(false)
+  const [sendingRekap, setSendingRekap] = useState<string | null>(null)
+  const [waktu, setWaktu] = useState(new Date())
 
-  const currentPiket = piketList[0]
+  useEffect(() => {
+    const t = setInterval(() => setWaktu(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
 
-  const uniqueLaporan = Array.from(new Map(laporanList.map((l) => [l.id, l])).values())
+  const ulpIds = ulpDataList.map((d) => d.ulp.id)
 
-  const reguStats: ReguStats[] = reguList.map((regu) => {
-    const regPetugas = petugasList.filter((p) => p.regu_id === regu.id)
-    const regLaporan = uniqueLaporan.filter((l) => l.regu_id === regu.id)
-    return {
-      regu,
-      petugas: regPetugas,
-      laporan: regLaporan,
-      total: regLaporan.length,
-      lapor: regLaporan.filter((l) => l.status === 'lapor').length,
-      ditangani: regLaporan.filter((l) => l.status === 'ditangani').length,
-      nyala_sementara: regLaporan.filter((l) => l.status === 'nyala_sementara').length,
-      selesai: regLaporan.filter((l) => l.status === 'selesai').length,
-    }
-  })
+  const handleRealtimeInsert = useCallback((laporan: Laporan) => {
+    setLaporanMap((prev) => {
+      const existing = prev[laporan.ulp_id] ?? []
+      if (existing.some((l) => l.id === laporan.id)) return prev
+      return { ...prev, [laporan.ulp_id]: [laporan, ...existing] }
+    })
+  }, [])
 
-  const totalLapor = reguStats.reduce((s, r) => s + r.lapor, 0)
-  const totalDitangani = reguStats.reduce((s, r) => s + r.ditangani, 0)
-  const totalNyalaSementara = reguStats.reduce((s, r) => s + r.nyala_sementara, 0)
-  const totalSelesai = reguStats.reduce((s, r) => s + r.selesai, 0)
+  const handleRealtimeUpdate = useCallback((laporan: Laporan) => {
+    setLaporanMap((prev) => {
+      const existing = prev[laporan.ulp_id] ?? []
+      return { ...prev, [laporan.ulp_id]: existing.map((l) => l.id === laporan.id ? laporan : l) }
+    })
+  }, [])
 
-  function openAddLaporan(reguId: string) {
-    setSelectedReguId(reguId)
-    setAddModalOpen(true)
+  useRealtimeLaporan({ ulpIds, onInsert: handleRealtimeInsert, onUpdate: handleRealtimeUpdate })
+
+  function openAddLaporan(reguId: string, ulpId: string, piketId: string | null, reguList: Regu[]) {
+    setAddModal({ reguId, ulpId, piketId, reguList })
   }
 
   function openUpdateLaporan(laporan: Laporan) {
@@ -81,37 +96,22 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     setUpdateKeterangan('')
   }
 
-  const handleRealtimeInsert = useCallback((laporan: Laporan) => {
-    setLaporanList((prev) => {
-      if (prev.some((l) => l.id === laporan.id)) return prev
-      return [laporan, ...prev]
-    })
-  }, [])
-
-  const handleRealtimeUpdate = useCallback((laporan: Laporan) => {
-    setLaporanList((prev) => prev.map((l) => (l.id === laporan.id ? laporan : l)))
-  }, [])
-
-  useRealtimeLaporan({
-    ulpId: profile.ulp.id,
-    onInsert: handleRealtimeInsert,
-    onUpdate: handleRealtimeUpdate,
-  })
-
   const handleAddLaporan = useCallback(async (data: CreateLaporanInput): Promise<{ error?: string }> => {
+    if (!addModal) return { error: 'No context' }
     const res = await fetch('/api/laporan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, ulp_id: profile.ulp.id, piket_id: currentPiket?.id ?? null }),
+      body: JSON.stringify({ ...data, ulp_id: addModal.ulpId, piket_id: addModal.piketId }),
     })
-
     const json = await res.json()
     if (!res.ok || json.error) return { error: json.error ?? 'Gagal menyimpan laporan' }
-
-    setLaporanList((prev) => [json.data, ...prev])
-    setAddModalOpen(false)
+    setLaporanMap((prev) => ({
+      ...prev,
+      [addModal.ulpId]: [json.data, ...(prev[addModal.ulpId] ?? [])],
+    }))
+    setAddModal(null)
     return {}
-  }, [profile.ulp.id, currentPiket?.id])
+  }, [addModal])
 
   async function handleSubmitUpdate() {
     if (!updateModal) return
@@ -123,119 +123,190 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     })
     const json = await res.json()
     if (res.ok && json.data) {
-      setLaporanList((prev) => prev.map((l) => (l.id === updateModal.id ? json.data : l)))
+      const ulpId = updateModal.ulp_id
+      setLaporanMap((prev) => ({
+        ...prev,
+        [ulpId]: (prev[ulpId] ?? []).map((l) => l.id === updateModal.id ? json.data : l),
+      }))
     }
     setUpdating(false)
     closeUpdateModal()
   }
 
   async function handleKirimWa(reguId: string) {
+    const ulpData = ulpDataList.find((d) => d.reguList.some((r) => r.id === reguId))
+    if (!ulpData) return
     setSendingWa(reguId)
     await fetch('/api/wa/kirim-regu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regu_id: reguId, ulp_id: profile.ulp.id, piket_id: currentPiket?.id ?? null }),
+      body: JSON.stringify({ regu_id: reguId, ulp_id: ulpData.ulp.id, piket_id: ulpData.piket?.id ?? null }),
     })
     setSendingWa(null)
   }
 
-  async function handleRekap() {
-    setSendingRekap(true)
+  async function handleRekap(ulpId: string, piketId: string) {
+    setSendingRekap(ulpId)
     await fetch('/api/wa/rekap-piket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: profile.ulp.id, piket_id: currentPiket?.id }),
+      body: JSON.stringify({ ulp_id: ulpId, piket_id: piketId }),
     })
-    setSendingRekap(false)
+    setSendingRekap(null)
   }
-
-  if (!currentPiket) {
-    return (
-      <div className="h-full flex flex-col">
-        <div className="p-4 border-b-2 border-neo-black" style={{ backgroundColor: '#003B8E' }}>
-          <h1 className="text-white font-black text-xl">⚡ MONITORING APKT — {profile.ulp.nama}</h1>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-lg font-bold text-neo-black">Belum ada piket aktif hari ini</p>
-          <p className="text-sm text-gray-500">Buat piket terlebih dahulu di halaman Piket</p>
-          <Button variant="primary" onClick={() => router.push('/piket')}>
-            Buat Piket Hari Ini
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  const gridCols = reguList.length <= 3 ? `grid-cols-${reguList.length}` :
-    reguList.length === 4 ? 'grid-cols-4' :
-    reguList.length === 5 ? 'grid-cols-5' : 'grid-cols-6'
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-neo-white">
-      {/* Header */}
-      <ShiftHeader
-        piket={currentPiket as never}
-        totalLapor={totalLapor}
-        totalDitangani={totalDitangani}
-        totalNyalaSementara={totalNyalaSementara}
-        totalSelesai={totalSelesai}
-      />
-
-      {/* Regu Grid */}
-      <div className={`flex-1 grid ${gridCols} gap-0 overflow-hidden`}>
-        {reguStats.map((stats, idx) => (
-          <div
-            key={stats.regu.id}
-            className={`flex flex-col overflow-hidden border-r-2 border-neo-black ${idx === reguStats.length - 1 ? 'border-r-0' : ''}`}
-          >
-            <ReguCard
-              stats={stats}
-              onAddLaporan={openAddLaporan}
-              onKirimWa={handleKirimWa}
-              onUpdateLaporan={openUpdateLaporan}
-              sendingWa={sendingWa === stats.regu.id}
-            />
-          </div>
-        ))}
+      {/* Global Top Bar */}
+      <div
+        className="flex items-center justify-between px-4 h-10 shrink-0 border-b-2 border-neo-black"
+        style={{ backgroundColor: '#003B8E' }}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">⚡</span>
+          <span className="text-white font-black text-sm tracking-wide">MONITORING APKT</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-white font-mono text-sm font-bold" suppressHydrationWarning>
+            {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </span>
+          <span className="text-blue-200 text-xs hidden sm:block">
+            {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </span>
+        </div>
       </div>
 
-      {/* Bottom action bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-t-2 border-neo-black bg-neo-gray">
+      {/* ULP Sections — flex column, each takes equal height */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {ulpDataList.map(({ ulp, piket, reguList, petugasList }) => {
+          const laporan = laporanMap[ulp.id] ?? []
+          const uniqueLaporan = Array.from(new Map(laporan.map((l) => [l.id, l])).values())
+
+          const reguStats: ReguStats[] = reguList.map((regu) => {
+            const regPetugas = petugasList.filter((p) => p.regu_id === regu.id)
+            const regLaporan = uniqueLaporan.filter((l) => l.regu_id === regu.id)
+            return {
+              regu,
+              petugas: regPetugas,
+              laporan: regLaporan,
+              total: regLaporan.length,
+              lapor: regLaporan.filter((l) => l.status === 'lapor').length,
+              ditangani: regLaporan.filter((l) => l.status === 'ditangani').length,
+              nyala_sementara: regLaporan.filter((l) => l.status === 'nyala_sementara').length,
+              selesai: regLaporan.filter((l) => l.status === 'selesai').length,
+            }
+          })
+
+          const totalLapor = reguStats.reduce((s, r) => s + r.lapor, 0)
+          const totalDitangani = reguStats.reduce((s, r) => s + r.ditangani, 0)
+          const totalNyalaSementara = reguStats.reduce((s, r) => s + r.nyala_sementara, 0)
+          const totalSelesai = reguStats.reduce((s, r) => s + r.selesai, 0)
+
+          const n = reguList.length
+          const gridCols = n <= 6 ? `grid-cols-${n}` : 'grid-cols-6'
+
+          return (
+            <div key={ulp.id} className="flex-1 min-h-0 flex flex-col border-b-2 border-neo-black last:border-b-0">
+              {/* ULP Section Header */}
+              <div
+                className="flex items-center justify-between px-3 py-1.5 border-b-2 border-neo-black shrink-0"
+                style={{ backgroundColor: '#0070C0' }}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-white font-black text-sm">{ulp.nama.toUpperCase()}</span>
+                  {piket ? (
+                    <>
+                      <span
+                        className="px-2 py-0.5 text-xs font-black border border-white/40"
+                        style={{ backgroundColor: '#FFD200', color: '#1A1A1A' }}
+                      >
+                        {SHIFT_LABEL[piket.shift_type.nama as ShiftType].replace('Shift ', '')}
+                      </span>
+                      <span className="text-blue-100 text-xs font-medium">
+                        {SHIFT_JAM[piket.shift_type.nama as ShiftType].mulai}–{SHIFT_JAM[piket.shift_type.nama as ShiftType].selesai}
+                      </span>
+                      {piket.nama_cc && (
+                        <span className="text-blue-200 text-xs hidden lg:block">CC: {piket.nama_cc}</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-blue-200 text-xs italic">Belum ada piket</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1">
+                    <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
+                    <UlpStatChip label="P" value={totalDitangani} bg="#0070C0" bordered />
+                    <UlpStatChip label="H" value={totalNyalaSementara} bg="#FFD200" textDark />
+                    <UlpStatChip label="S" value={totalSelesai} bg="#1DB954" />
+                  </div>
+                  {piket && (
+                    <button
+                      disabled={sendingRekap === ulp.id}
+                      onClick={() => handleRekap(ulp.id, piket.id)}
+                      className="px-2 py-0.5 text-xs font-bold border border-white/40 text-white hover:opacity-80 transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: '#1DB954' }}
+                    >
+                      {sendingRekap === ulp.id ? '...' : '📊 Rekap'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Regu Grid or No-Piket State */}
+              {!piket ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-neo-black">Belum ada piket aktif</p>
+                    <button
+                      className="mt-1 text-xs text-pln-blue underline"
+                      onClick={() => router.push('/piket')}
+                    >
+                      Buat piket
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex-1 min-h-0 grid ${gridCols} divide-x-2 divide-neo-black overflow-hidden`}>
+                  {reguStats.map((stats) => (
+                    <ReguCard
+                      key={stats.regu.id}
+                      stats={stats}
+                      onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket.id, reguList)}
+                      onKirimWa={handleKirimWa}
+                      onUpdateLaporan={openUpdateLaporan}
+                      sendingWa={sendingWa === stats.regu.id}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-t-2 border-neo-black bg-neo-gray shrink-0">
         <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
           <span className="w-2 h-2 rounded-full bg-pln-green inline-block" />
           {profile.nama} · {profile.role.toUpperCase()}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => router.push('/settings')}
-          >
-            ⚙ Pengaturan
-          </Button>
-          <Button
-            variant="yellow"
-            size="sm"
-            loading={sendingRekap}
-            onClick={handleRekap}
-          >
-            📊 Rekap Piket → WA
-          </Button>
-        </div>
+        <Button variant="secondary" size="sm" onClick={() => router.push('/settings')}>
+          ⚙ Pengaturan
+        </Button>
       </div>
 
       {/* Add Laporan Modal */}
-      <Modal
-        open={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        title="Input Laporan Baru"
-      >
-        <LaporanForm
-          reguList={reguList}
-          defaultReguId={selectedReguId}
-          onSubmit={handleAddLaporan}
-          onCancel={() => setAddModalOpen(false)}
-        />
+      <Modal open={!!addModal} onClose={() => setAddModal(null)} title="Input Laporan Baru">
+        {addModal && (
+          <LaporanForm
+            reguList={addModal.reguList}
+            defaultReguId={addModal.reguId}
+            onSubmit={handleAddLaporan}
+            onCancel={() => setAddModal(null)}
+          />
+        )}
       </Modal>
 
       {/* Update Status Modal */}
@@ -246,7 +317,6 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
       >
         {updateModal && (
           <div className="flex flex-col gap-4 min-w-72">
-            {/* Info laporan */}
             <div className="neo-border p-3 bg-neo-gray text-sm flex flex-col gap-1">
               <p className="font-bold text-neo-black">{updateModal.nama_pelanggan}</p>
               <p className="text-gray-600 text-xs">{updateModal.lokasi}</p>
@@ -255,7 +325,6 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
               </div>
             </div>
 
-            {/* Status selector — tampil sebagai grid tombol */}
             <div className="flex flex-col gap-1">
               <label className="text-sm font-bold text-neo-black">Status Baru</label>
               <div className="grid grid-cols-2 gap-2">
@@ -294,6 +363,19 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
           </div>
         )}
       </Modal>
+    </div>
+  )
+}
+
+function UlpStatChip({
+  label, value, bg, textDark, bordered,
+}: { label: string; value: number; bg: string; textDark?: boolean; bordered?: boolean }) {
+  return (
+    <div
+      className={`px-1.5 py-0.5 text-xs font-black leading-none border ${bordered ? 'border-white/40' : 'border-transparent'}`}
+      style={{ backgroundColor: bg, color: textDark ? '#1A1A1A' : '#fff' }}
+    >
+      {value} {label}
     </div>
   )
 }
