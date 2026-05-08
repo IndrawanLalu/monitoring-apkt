@@ -56,7 +56,6 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
-      profile={{ id: profile.id, nama: profile.nama, role: profile.role }}
       ulpDataList={ulpDataList as never}
       today={today}
     />

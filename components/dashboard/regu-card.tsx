@@ -86,7 +86,7 @@ export function ReguCard({ stats, onAddLaporan, onKirimWa, onUpdateLaporan, send
 
       {/* Laporan list */}
       {!collapsed && (
-        <div className="flex-1 overflow-y-auto divide-y divide-neo-gray">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-neo-gray">
           {aktivLaporan.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-gray-400 font-medium">
               Tidak ada laporan aktif

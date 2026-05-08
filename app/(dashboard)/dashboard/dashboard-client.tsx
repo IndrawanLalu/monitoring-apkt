@@ -29,7 +29,6 @@ interface UlpData {
 }
 
 interface Props {
-  profile: { id: string; nama: string; role: string }
   ulpDataList: UlpData[]
   today: string
 }
@@ -41,7 +40,7 @@ interface AddModalCtx {
   reguList: Regu[]
 }
 
-export function DashboardClient({ profile, ulpDataList, today }: Props) {
+export function DashboardClient({ ulpDataList, today }: Props) {
   const router = useRouter()
 
   const [laporanMap, setLaporanMap] = useState<Record<string, Laporan[]>>(
@@ -156,26 +155,7 @@ export function DashboardClient({ profile, ulpDataList, today }: Props) {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-neo-white">
-      {/* Global Top Bar */}
-      <div
-        className="flex items-center justify-between px-4 h-10 shrink-0 border-b-2 border-neo-black"
-        style={{ backgroundColor: '#003B8E' }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-base">⚡</span>
-          <span className="text-white font-black text-sm tracking-wide">MONITORING APKT</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-white font-mono text-sm font-bold" suppressHydrationWarning>
-            {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </span>
-          <span className="text-blue-200 text-xs hidden sm:block">
-            {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </span>
-        </div>
-      </div>
-
+    <div className="flex flex-col overflow-hidden bg-neo-white" style={{ height: 'calc(100vh - 3rem)' }}>
       {/* ULP Sections — flex column, each takes equal height */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {ulpDataList.map(({ ulp, piket, reguList, petugasList }) => {
@@ -207,26 +187,28 @@ export function DashboardClient({ profile, ulpDataList, today }: Props) {
 
           return (
             <div key={ulp.id} className="flex-1 min-h-0 flex flex-col border-b-2 border-neo-black last:border-b-0">
-              {/* ULP Section Header */}
+              {/* Combined Header */}
               <div
-                className="flex items-center justify-between px-3 py-1.5 border-b-2 border-neo-black shrink-0"
-                style={{ backgroundColor: '#0070C0' }}
+                className="flex items-center justify-between px-3 py-2 border-b-2 border-neo-black shrink-0"
+                style={{ backgroundColor: '#003B8E' }}
               >
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white font-black text-sm">{ulp.nama.toUpperCase()}</span>
+                {/* Left: app icon + ULP + shift info */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-base shrink-0">⚡</span>
+                  <span className="text-white font-black text-sm shrink-0">{ulp.nama.toUpperCase()}</span>
                   {piket ? (
                     <>
                       <span
-                        className="px-2 py-0.5 text-xs font-black border border-white/40"
+                        className="px-2 py-0.5 text-xs font-black shrink-0"
                         style={{ backgroundColor: '#FFD200', color: '#1A1A1A' }}
                       >
                         {SHIFT_LABEL[piket.shift_type.nama as ShiftType].replace('Shift ', '')}
                       </span>
-                      <span className="text-blue-100 text-xs font-medium">
+                      <span className="text-blue-100 text-xs font-medium shrink-0">
                         {SHIFT_JAM[piket.shift_type.nama as ShiftType].mulai}–{SHIFT_JAM[piket.shift_type.nama as ShiftType].selesai}
                       </span>
                       {piket.nama_cc && (
-                        <span className="text-blue-200 text-xs hidden lg:block">CC: {piket.nama_cc}</span>
+                        <span className="text-blue-200 text-xs hidden lg:block truncate">CC: {piket.nama_cc}</span>
                       )}
                     </>
                   ) : (
@@ -234,7 +216,16 @@ export function DashboardClient({ profile, ulpDataList, today }: Props) {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Right: clock + date + stats + rekap */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right hidden md:block">
+                    <div className="text-white font-mono text-sm font-black leading-none" suppressHydrationWarning>
+                      {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </div>
+                    <div className="text-blue-200 text-xs leading-none mt-0.5">
+                      {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1">
                     <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
                     <UlpStatChip label="P" value={totalDitangani} bg="#0070C0" bordered />
@@ -256,46 +247,42 @@ export function DashboardClient({ profile, ulpDataList, today }: Props) {
 
               {/* Regu Grid or No-Piket State */}
               {!piket ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-neo-black">Belum ada piket aktif</p>
-                    <button
-                      className="mt-1 text-xs text-pln-blue underline"
-                      onClick={() => router.push('/piket')}
-                    >
-                      Buat piket
-                    </button>
+                <div className="flex-1 relative">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-neo-black">Belum ada piket aktif</p>
+                      <button
+                        className="mt-1 text-xs text-pln-blue underline"
+                        onClick={() => router.push('/piket')}
+                      >
+                        Buat piket
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className={`flex-1 min-h-0 grid grid-rows-1 ${gridCols} divide-x-2 divide-neo-black overflow-hidden`}>
-                  {reguStats.map((stats) => (
-                    <div key={stats.regu.id} className="min-h-0 overflow-hidden flex flex-col">
-                      <ReguCard
-                        stats={stats}
-                        onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket.id, reguList)}
-                        onKirimWa={handleKirimWa}
-                        onUpdateLaporan={openUpdateLaporan}
-                        sendingWa={sendingWa === stats.regu.id}
-                      />
-                    </div>
-                  ))}
+                <div className="flex-1 min-h-0 relative overflow-hidden">
+                  <div
+                    className={`absolute inset-0 grid ${gridCols} divide-x-2 divide-neo-black`}
+                    style={{ gridTemplateRows: '1fr' }}
+                  >
+                    {reguStats.map((stats) => (
+                      <div key={stats.regu.id} className="h-full overflow-hidden flex flex-col">
+                        <ReguCard
+                          stats={stats}
+                          onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket.id, reguList)}
+                          onKirimWa={handleKirimWa}
+                          onUpdateLaporan={openUpdateLaporan}
+                          sendingWa={sendingWa === stats.regu.id}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           )
         })}
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-t-2 border-neo-black bg-neo-gray shrink-0">
-        <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-          <span className="w-2 h-2 rounded-full bg-pln-green inline-block" />
-          {profile.nama} · {profile.role.toUpperCase()}
-        </div>
-        <Button variant="secondary" size="sm" onClick={() => router.push('/settings')}>
-          ⚙ Pengaturan
-        </Button>
       </div>
 
       {/* Add Laporan Modal */}
