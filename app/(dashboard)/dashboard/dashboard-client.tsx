@@ -268,7 +268,7 @@ export function DashboardClient({ profile, ulpDataList, today }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className={`flex-1 min-h-0 grid ${gridCols} divide-x-2 divide-neo-black`}>
+                <div className={`flex-1 min-h-0 grid grid-rows-1 ${gridCols} divide-x-2 divide-neo-black overflow-hidden`}>
                   {reguStats.map((stats) => (
                     <div key={stats.regu.id} className="min-h-0 overflow-hidden flex flex-col">
                       <ReguCard
