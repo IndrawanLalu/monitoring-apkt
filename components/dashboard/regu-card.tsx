@@ -17,10 +17,7 @@ interface ReguCardProps {
 type WarningLevel = 'none' | 'yellow' | 'red'
 
 function getDurasiMenit(laporan: Laporan, now: number): number {
-  const base = laporan.status === 'lapor'
-    ? new Date(laporan.created_at).getTime()
-    : new Date(laporan.updated_at).getTime()
-  return Math.max(0, Math.floor((now - base) / 60000))
+  return Math.max(0, Math.floor((now - new Date(laporan.created_at).getTime()) / 60000))
 }
 
 function getWarning(status: StatusLaporan, menit: number): WarningLevel {

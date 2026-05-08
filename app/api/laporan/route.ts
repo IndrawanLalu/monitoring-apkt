@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
       lokasi: parsed.data.lokasi,
       keterangan: parsed.data.keterangan ?? null,
       status: parsed.data.status ?? 'lapor',
-      ...(parsed.data.created_at ? { created_at: parsed.data.created_at } : {}),
+      ...(parsed.data.created_at ? {
+        created_at: parsed.data.created_at,
+        updated_at: parsed.data.created_at,
+      } : {}),
     })
     .select('*')
     .single()
