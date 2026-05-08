@@ -8,22 +8,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { ulp_id } = await req.json()
+  const userId = user.id
   const admin = createAdminClient()
-  const client = getWaClient(ulp_id)
+  const client = getWaClient(userId)
 
   if (!client) {
     await admin
       .from('wa_session')
       .update({ status: 'disconnected', session_data: null })
-      .eq('ulp_id', ulp_id)
+      .eq('user_id', userId)
     return NextResponse.json({ status: 'disconnected' })
   }
 
   try {
     const info = client.info
     if (info?.wid?.user) {
-      // Client aktif dan authenticated
       const chats = await client.getChats()
       const groups = chats
         .filter((c) => c.isGroup)
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
       await admin
         .from('wa_session')
         .update({ status: 'connected', session_data: { wa_number: info.wid.user, groups } })
-        .eq('ulp_id', ulp_id)
+        .eq('user_id', userId)
 
       return NextResponse.json({ status: 'connected', wa_number: info.wid.user, groups_count: groups.length })
     }

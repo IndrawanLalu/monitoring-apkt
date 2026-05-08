@@ -9,6 +9,8 @@ export const createLaporanSchema = z.object({
   lokasi: z.string().min(1, 'Lokasi wajib diisi').max(200),
   keterangan: z.string().max(500).nullable().optional(),
   piket_id: z.string().uuid().nullable().optional(),
+  created_at: z.string().datetime().optional(),
+  status: z.enum(['lapor', 'ditangani', 'nyala_sementara', 'selesai']).optional(),
 })
 
 export const updateStatusSchema = z.object({

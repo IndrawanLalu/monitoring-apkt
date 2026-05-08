@@ -4,6 +4,21 @@ import { buildPesanLaporanBaru, buildPesanUpdateStatus } from '@/lib/wa/messages
 import { normJoin } from '@/lib/utils/format'
 import type { StatusLaporan } from '@/types'
 
+// Cari WA client yang aktif untuk sebuah ULP
+async function getWaClientForUlp(ulpId: string) {
+  const admin = createAdminClient()
+  const { data: userUlps } = await admin
+    .from('user_ulp')
+    .select('user_id')
+    .eq('ulp_id', ulpId)
+
+  for (const { user_id } of userUlps ?? []) {
+    const client = getWaClient(user_id)
+    if (client) return client
+  }
+  return null
+}
+
 export async function kirimLaporanBaru(laporanId: string): Promise<void> {
   const admin = createAdminClient()
 
@@ -18,7 +33,7 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
   const ulp = normJoin(laporan.ulp as unknown as { id: string; nama: string; wa_grup_id: string | null } | null)
   if (!ulp?.wa_grup_id) return
 
-  const waClient = getWaClient(ulp.id)
+  const waClient = await getWaClientForUlp(laporan.ulp_id)
   if (!waClient) return
 
   const regu = normJoin(laporan.regu as unknown as { id: string; nama: string } | null)
@@ -52,7 +67,7 @@ export async function kirimUpdateStatus(
   const ulp = normJoin(laporan.ulp as unknown as { wa_grup_id: string | null } | null)
   if (!ulp?.wa_grup_id) return
 
-  const waClient = getWaClient(laporan.ulp_id)
+  const waClient = await getWaClientForUlp(laporan.ulp_id)
   if (!waClient) return
 
   const regu = normJoin(laporan.regu as unknown as { nama: string } | null)

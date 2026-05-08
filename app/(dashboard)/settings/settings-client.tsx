@@ -11,14 +11,14 @@ import Image from 'next/image'
 
 interface WaSession {
   id: string
-  ulp_id: string
+  user_id: string
   status: WaSessionStatus
   session_data: Record<string, unknown> | null
   updated_at: string
 }
 
 interface Props {
-  profile: { ulp_id: string; role: string; ulp: { id: string; nama: string; kode: string; wa_grup_id: string | null } }
+  profile: { ulp_id: string; role: string; ulp: { id: string; nama: string; kode: string; wa_grup_id: string | null }; userId?: string }
   reguList: Regu[]
   petugasList: Petugas[]
   waSession: WaSession | null
@@ -41,17 +41,18 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
   const [loadingGrup, setLoadingGrup] = useState(false)
 
   const ulpId = profile.ulp_id
+  const userId = profile.userId
 
   // Realtime WA session updates
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
-      .channel(`wa_session_${ulpId}`)
+      .channel(`wa_session_${userId}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'wa_session',
-        filter: `ulp_id=eq.${ulpId}`,
+        filter: `user_id=eq.${userId}`,
       }, (payload) => {
         setWaSession(payload.new as WaSession)
       })
@@ -62,49 +63,32 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
 
   async function handleInit() {
     setInitLoading(true)
-    await fetch('/api/wa/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId }),
-    })
+    await fetch('/api/wa/init', { method: 'POST' })
     setInitLoading(false)
   }
 
   async function handleDisconnect() {
     setDisconnecting(true)
-    await fetch('/api/wa/disconnect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId }),
-    })
+    await fetch('/api/wa/disconnect', { method: 'POST' })
     setWaSession((prev) => prev ? { ...prev, status: 'disconnected', session_data: null } : null)
     setGrupList([])
     setDisconnecting(false)
   }
 
   async function handleRefreshStatus() {
-    // Paksa sync status dari client aktual ke Supabase, lalu baca hasilnya
-    await fetch('/api/wa/sync-status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId }),
-    })
+    await fetch('/api/wa/sync-status', { method: 'POST' })
     const supabase = createClient()
     const { data } = await supabase
       .from('wa_session')
-      .select('id, ulp_id, status, session_data, updated_at')
-      .eq('ulp_id', ulpId)
+      .select('id, user_id, status, session_data, updated_at')
+      .eq('user_id', userId)
       .maybeSingle()
     if (data) setWaSession(data as WaSession)
   }
 
   async function handleFetchGrup() {
     setLoadingGrup(true)
-    const res = await fetch('/api/wa/groups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId }),
-    })
+    const res = await fetch('/api/wa/groups', { method: 'POST' })
     const json = await res.json()
     setGrupList(json.data ?? [])
     setLoadingGrup(false)
@@ -124,7 +108,7 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
     await fetch('/api/wa/pairing-code', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId, phone_number: phoneNumber.trim() }),
+      body: JSON.stringify({ phone_number: phoneNumber.trim() }),
     })
     setPairingLoading(false)
   }

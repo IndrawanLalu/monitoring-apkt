@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     piket?.nama_cc ?? null,
   )
 
-  const waClient = getWaClient(ulp_id)
+  const waClient = getWaClient(user.id)
   if (!waClient) return NextResponse.json({ error: 'WhatsApp belum terhubung' }, { status: 503 })
 
   await waClient.sendMessage(ulp.wa_grup_id, pesan)

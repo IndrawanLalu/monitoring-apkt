@@ -8,10 +8,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { ulp_id } = await req.json()
+  const userId = user.id
+  const client = getWaClient(userId)
 
-  // Coba ambil langsung dari client aktif
-  const client = getWaClient(ulp_id)
   if (client) {
     const chats = await client.getChats()
     const groups = chats
@@ -20,12 +19,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: groups })
   }
 
-  // Fallback: baca dari session_data yang tersimpan di Supabase
+  // Fallback: baca dari session_data yang tersimpan
   const admin = createAdminClient()
   const { data: session } = await admin
     .from('wa_session')
     .select('session_data')
-    .eq('ulp_id', ulp_id)
+    .eq('user_id', userId)
     .single()
 
   const groups = (session?.session_data as { groups?: { nama: string; id: string }[] } | null)?.groups ?? []

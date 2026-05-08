@@ -1,14 +1,13 @@
 'use client'
 
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils/cn'
-import type { Profile } from '@/types'
+import type { UserProfile } from '@/lib/auth'
 
 interface NavbarProps {
-  profile: Profile & { ulp: { nama: string } }
+  profile: UserProfile
 }
 
 const NAV_ITEMS = [
@@ -24,6 +23,7 @@ export function Navbar({ profile }: NavbarProps) {
   const [loggingOut, setLoggingOut] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [pendingHref, setPendingHref] = useState<string | null>(null)
+  const [switchingUlp, setSwitchingUlp] = useState(false)
 
   async function handleLogout() {
     setLoggingOut(true)
@@ -41,17 +41,48 @@ export function Navbar({ profile }: NavbarProps) {
     })
   }
 
-  // Clear pendingHref when navigation completes (pathname changed)
+  async function handleSwitchUlp(ulpId: string) {
+    if (ulpId === profile.activeUlp.id) return
+    setSwitchingUlp(true)
+    await fetch('/api/switch-ulp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ulp_id: ulpId }),
+    })
+    router.refresh()
+    setSwitchingUlp(false)
+  }
+
   const isNavLoading = isPending
 
   return (
     <nav className="flex items-center justify-between px-4 h-12 border-b-2 border-neo-black bg-pln-blue shrink-0">
-      {/* Brand */}
+      {/* Brand + ULP switcher */}
       <div className="flex items-center gap-2">
         <span className="text-lg">⚡</span>
-        <span className="text-white font-black text-sm tracking-wide hidden sm:block">
-          {profile.ulp.nama}
-        </span>
+        {profile.ulps.length > 1 ? (
+          <div className="flex items-center gap-1.5">
+            {switchingUlp && (
+              <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            <select
+              value={profile.activeUlp.id}
+              onChange={(e) => handleSwitchUlp(e.target.value)}
+              disabled={switchingUlp}
+              className="bg-transparent text-white font-black text-sm border border-white/30 rounded px-1 py-0.5 cursor-pointer disabled:opacity-60"
+            >
+              {profile.ulps.map((ulp) => (
+                <option key={ulp.id} value={ulp.id} className="text-neo-black bg-white">
+                  {ulp.nama}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <span className="text-white font-black text-sm tracking-wide hidden sm:block">
+            {profile.activeUlp.nama}
+          </span>
+        )}
       </div>
 
       {/* Nav links */}

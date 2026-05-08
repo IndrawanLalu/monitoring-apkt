@@ -1,7 +1,7 @@
 import { Client, LocalAuth } from 'whatsapp-web.js'
 import path from 'path'
 
-// Global singleton agar persisten antar API route dan hot reload Next.js
+// Global singleton — keyed by user_id (bukan ulp_id)
 const g = global as typeof global & {
   _waClients?: Map<string, Client>
   _waRegistered?: Set<string>
@@ -10,26 +10,26 @@ const g = global as typeof global & {
 const clients: Map<string, Client> = g._waClients ?? (g._waClients = new Map())
 const registeredHandlers: Set<string> = g._waRegistered ?? (g._waRegistered = new Set())
 
-export function isClientRegistered(ulpId: string): boolean {
-  return registeredHandlers.has(ulpId)
+export function isClientRegistered(userId: string): boolean {
+  return registeredHandlers.has(userId)
 }
 
-export function markClientRegistered(ulpId: string): void {
-  registeredHandlers.add(ulpId)
+export function markClientRegistered(userId: string): void {
+  registeredHandlers.add(userId)
 }
 
-export function getWaClient(ulpId: string): Client | null {
-  return clients.get(ulpId) ?? null
+export function getWaClient(userId: string): Client | null {
+  return clients.get(userId) ?? null
 }
 
-export function getOrCreateWaClient(ulpId: string): Client {
-  if (clients.has(ulpId)) return clients.get(ulpId)!
+export function getOrCreateWaClient(userId: string): Client {
+  if (clients.has(userId)) return clients.get(userId)!
 
   const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
 
   const client = new Client({
     authStrategy: new LocalAuth({
-      clientId: `ulp-${ulpId}`,
+      clientId: `user-${userId}`,
       dataPath: path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir),
     }),
     puppeteer: {
@@ -47,16 +47,16 @@ export function getOrCreateWaClient(ulpId: string): Client {
     },
   })
 
-  clients.set(ulpId, client)
+  clients.set(userId, client)
   return client
 }
 
-export function destroyWaClient(ulpId: string): void {
-  const client = clients.get(ulpId)
+export function destroyWaClient(userId: string): void {
+  const client = clients.get(userId)
   if (client) {
     client.destroy().catch(() => null)
-    clients.delete(ulpId)
-    registeredHandlers.delete(ulpId)
+    clients.delete(userId)
+    registeredHandlers.delete(userId)
   }
 }
 

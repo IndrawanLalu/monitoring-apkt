@@ -1,23 +1,16 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PiketClient } from './piket-client'
+import { getProfile } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export default async function PiketPage() {
+  const profile = await getProfile()
+  if (!profile) redirect('/login')
+
+  const ulpId = profile.activeUlp.id
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('ulp_id, role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.ulp_id) redirect('/login')
-
-  const ulpId = profile.ulp_id
 
   const [{ data: piketList }, { data: shiftTypes }, { data: reguList }, { data: petugasMaster }] = await Promise.all([
     supabase

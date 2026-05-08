@@ -50,7 +50,8 @@ export async function POST(req: NextRequest) {
       nomor_pelanggan: parsed.data.nomor_pelanggan ?? null,
       lokasi: parsed.data.lokasi,
       keterangan: parsed.data.keterangan ?? null,
-      status: 'lapor',
+      status: parsed.data.status ?? 'lapor',
+      ...(parsed.data.created_at ? { created_at: parsed.data.created_at } : {}),
     })
     .select('*')
     .single()

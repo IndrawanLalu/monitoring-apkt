@@ -93,7 +93,7 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
   }, [])
 
   useRealtimeLaporan({
-    ulpId: profile.ulp_id,
+    ulpId: profile.ulp.id,
     onInsert: handleRealtimeInsert,
     onUpdate: handleRealtimeUpdate,
   })
@@ -102,7 +102,7 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     const res = await fetch('/api/laporan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, ulp_id: profile.ulp_id, piket_id: currentPiket?.id ?? null }),
+      body: JSON.stringify({ ...data, ulp_id: profile.ulp.id, piket_id: currentPiket?.id ?? null }),
     })
 
     const json = await res.json()
@@ -111,7 +111,7 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     setLaporanList((prev) => [json.data, ...prev])
     setAddModalOpen(false)
     return {}
-  }, [profile.ulp_id, currentPiket?.id])
+  }, [profile.ulp.id, currentPiket?.id])
 
   async function handleSubmitUpdate() {
     if (!updateModal) return
@@ -134,7 +134,7 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     await fetch('/api/wa/kirim-regu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regu_id: reguId, ulp_id: profile.ulp_id, piket_id: currentPiket?.id ?? null }),
+      body: JSON.stringify({ regu_id: reguId, ulp_id: profile.ulp.id, piket_id: currentPiket?.id ?? null }),
     })
     setSendingWa(null)
   }
@@ -144,7 +144,7 @@ export function DashboardClient({ profile, piketList, reguList, petugasList, lap
     await fetch('/api/wa/rekap-piket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: profile.ulp_id, piket_id: currentPiket?.id }),
+      body: JSON.stringify({ ulp_id: profile.ulp.id, piket_id: currentPiket?.id }),
     })
     setSendingRekap(false)
   }

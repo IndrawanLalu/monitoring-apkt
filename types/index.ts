@@ -90,11 +90,10 @@ export interface RiwayatStatus {
 
 export interface WaSession {
   id: string
-  ulp_id: string
+  user_id: string
   status: WaSessionStatus
   session_data: Record<string, unknown> | null
   updated_at: string
-  ulp?: Ulp
 }
 
 export interface Profile {

@@ -8,23 +8,23 @@ export async function register() {
 
   const { data: sessions } = await admin
     .from('wa_session')
-    .select('ulp_id')
+    .select('user_id')
     .eq('status', 'connected')
 
-  for (const { ulp_id } of sessions ?? []) {
-    if (isClientRegistered(ulp_id)) continue
+  for (const { user_id } of sessions ?? []) {
+    if (isClientRegistered(user_id)) continue
 
-    console.log(`[WA] Auto-reconnect ULP ${ulp_id}`)
-    markClientRegistered(ulp_id)
+    console.log(`[WA] Auto-reconnect user ${user_id}`)
+    markClientRegistered(user_id)
 
-    const client = getOrCreateWaClient(ulp_id)
+    const client = getOrCreateWaClient(user_id)
 
     client.on('ready', async () => {
       const info = client.info
       await admin
         .from('wa_session')
         .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
-        .eq('ulp_id', ulp_id)
+        .eq('user_id', user_id)
 
       await new Promise((r) => setTimeout(r, 5000))
       try {
@@ -35,7 +35,7 @@ export async function register() {
         await admin
           .from('wa_session')
           .update({ session_data: { wa_number: info?.wid?.user, groups } })
-          .eq('ulp_id', ulp_id)
+          .eq('user_id', user_id)
       } catch (err) {
         console.error('[WA getChats error]', err)
       }
@@ -45,11 +45,11 @@ export async function register() {
       await admin
         .from('wa_session')
         .update({ status: 'disconnected', session_data: null })
-        .eq('ulp_id', ulp_id)
+        .eq('user_id', user_id)
     })
 
     client.initialize().catch((err) => {
-      console.error(`[WA] Auto-reconnect error ULP ${ulp_id}:`, err)
+      console.error(`[WA] Auto-reconnect error user ${user_id}:`, err)
     })
   }
 }

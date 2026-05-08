@@ -53,8 +53,6 @@ interface Props {
 
 export function PiketClient({ ulpId, role, piketList: initial, shiftTypes, reguList, petugasMaster }: Props) {
   const [piketList, setPiketList] = useState<PiketRow[]>(initial)
-  const [selectedShift, setSelectedShift] = useState(shiftTypes[0]?.id ?? '')
-  const [selectedTanggal, setSelectedTanggal] = useState(new Date().toISOString().split('T')[0])
   const [namaCC, setNamaCC] = useState('')
   // Map: regu_id -> [slot1_petugas_id, slot2_petugas_id]
   const [petugasAssign, setPetugasAssign] = useState<Record<string, [string, string]>>(() =>
@@ -66,6 +64,13 @@ export function PiketClient({ ulpId, role, piketList: initial, shiftTypes, reguL
   const canManage = role === 'admin' || role === 'supervisor' || role === 'cc'
   const today = new Date().toISOString().split('T')[0]
   const todayPiket = piketList.filter((p) => p.tanggal === today)
+
+  // Tentukan shift yang sedang aktif berdasarkan jam sekarang
+  const jamSekarang = new Date().getHours()
+  const currentShiftNama = jamSekarang >= 8 && jamSekarang < 16 ? 'pagi' : jamSekarang >= 16 ? 'sore' : 'malam'
+  const currentShiftType = shiftTypes.find((s) => s.nama === currentShiftNama)
+  const activePiket = todayPiket.find((p) => p.shift_type.nama === currentShiftNama)
+
 
   function setSlot(reguId: string, slot: 0 | 1, petugasId: string) {
     setPetugasAssign((prev) => {
@@ -89,13 +94,14 @@ export function PiketClient({ ulpId, role, piketList: initial, shiftTypes, reguL
   }
 
   async function handleBuat() {
-    if (!selectedShift) return
+    if (!currentShiftType) {
+      setError('Tidak dapat menentukan shift saat ini')
+      return
+    }
     if (!namaCC.trim()) {
       setError('Nama CC wajib diisi')
       return
     }
-    setLoading(true)
-    setError(null)
 
     const petugas_assignments = reguList.flatMap((regu) => {
       const slots = petugasAssign[regu.id] ?? ['', '']
@@ -104,14 +110,26 @@ export function PiketClient({ ulpId, role, piketList: initial, shiftTypes, reguL
       return [{ regu_id: regu.id, petugas_ids }]
     })
 
+    const reguKosong = reguList.filter((r) => {
+      const slots = petugasAssign[r.id] ?? ['', '']
+      return !slots.some(Boolean)
+    })
+    if (reguKosong.length > 0) {
+      setError(`Regu berikut belum ada petugasnya: ${reguKosong.map((r) => r.nama).join(', ')}`)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
     const res = await fetch('/api/piket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ulp_id: ulpId,
-        shift_type_id: selectedShift,
-        tanggal: selectedTanggal,
-        nama_cc: namaCC.trim() || null,
+        shift_type_id: currentShiftType.id,
+        tanggal: today,
+        nama_cc: namaCC.trim(),
         petugas_assignments,
       }),
     })
@@ -147,35 +165,35 @@ export function PiketClient({ ulpId, role, piketList: initial, shiftTypes, reguL
         Manajemen Piket
       </h1>
 
-      {canManage && (
+      {canManage && activePiket && (
+        <Card className="mb-6">
+          <div className="p-4 border-b-2 border-neo-black bg-pln-green">
+            <h2 className="font-black text-white text-sm uppercase tracking-wide">
+              ✅ Piket Shift {SHIFT_LABEL[activePiket.shift_type.nama]} Sedang Aktif
+            </h2>
+          </div>
+          <div className="p-4 text-sm text-gray-600 font-medium">
+            <p>
+              Piket shift ini sudah berjalan. Piket baru hanya bisa dibuat setelah shift berganti
+              pukul <strong>{SHIFT_JAM[activePiket.shift_type.nama].selesai}</strong>.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {canManage && !activePiket && (
         <Card className="mb-6">
           <div className="p-4 border-b-2 border-neo-black bg-pln-yellow">
             <h2 className="font-black text-neo-black">+ Buat Piket Baru</h2>
           </div>
           <div className="p-4 flex flex-col gap-4">
-            {/* Shift + Tanggal */}
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Shift"
-                value={selectedShift}
-                onChange={(e) => setSelectedShift(e.target.value)}
-              >
-                {shiftTypes.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {SHIFT_LABEL[s.nama]} ({SHIFT_JAM[s.nama].mulai}–{SHIFT_JAM[s.nama].selesai})
-                  </option>
-                ))}
-              </Select>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-bold text-neo-black">Tanggal</label>
-                <input
-                  type="date"
-                  value={selectedTanggal}
-                  onChange={(e) => setSelectedTanggal(e.target.value)}
-                  className="neo-input px-3 py-2 text-sm font-medium"
-                />
-              </div>
+            {/* Info shift aktif */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-neo-gray border-2 border-neo-black text-sm font-bold text-neo-black">
+              <span>🕐</span>
+              <span>
+                Shift {currentShiftType ? SHIFT_LABEL[currentShiftType.nama] : '—'} —{' '}
+                {currentShiftType ? `${SHIFT_JAM[currentShiftType.nama].mulai}–${SHIFT_JAM[currentShiftType.nama].selesai}` : ''} | {formatTanggal(today)}
+              </span>
             </div>
 
             {/* Nama CC */}

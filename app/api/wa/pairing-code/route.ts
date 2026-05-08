@@ -8,21 +8,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { ulp_id, phone_number } = await req.json()
-  if (!ulp_id || !phone_number) {
-    return NextResponse.json({ error: 'ulp_id dan phone_number diperlukan' }, { status: 400 })
+  const userId = user.id
+  const { phone_number } = await req.json()
+  if (!phone_number) {
+    return NextResponse.json({ error: 'phone_number diperlukan' }, { status: 400 })
   }
 
-  // Bersihkan nomor: hanya angka, pastikan diawali 62
   const cleanPhone = phone_number.replace(/\D/g, '').replace(/^0/, '62')
 
   const admin = createAdminClient()
-  await admin.from('wa_session').upsert({ ulp_id, status: 'loading' }, { onConflict: 'ulp_id' })
+  await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
 
-  const client = getOrCreateWaClient(ulp_id)
+  const client = getOrCreateWaClient(userId)
 
-  if (!isClientRegistered(ulp_id)) {
-    markClientRegistered(ulp_id)
+  if (!isClientRegistered(userId)) {
+    markClientRegistered(userId)
 
     client.on('qr', async () => {
       try {
@@ -30,13 +30,13 @@ export async function POST(req: NextRequest) {
         await admin
           .from('wa_session')
           .update({ status: 'scanning', session_data: { pairing_code: code } })
-          .eq('ulp_id', ulp_id)
+          .eq('user_id', userId)
       } catch (err) {
         console.error('[WA pairing-code error]', err)
         await admin
           .from('wa_session')
           .update({ status: 'disconnected', session_data: null })
-          .eq('ulp_id', ulp_id)
+          .eq('user_id', userId)
       }
     })
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       await admin
         .from('wa_session')
         .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
-        .eq('ulp_id', ulp_id)
+        .eq('user_id', userId)
 
       await new Promise((r) => setTimeout(r, 5000))
       try {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         await admin
           .from('wa_session')
           .update({ session_data: { wa_number: info?.wid?.user, groups } })
-          .eq('ulp_id', ulp_id)
+          .eq('user_id', userId)
       } catch (err) {
         console.error('[WA getChats error]', err)
       }
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       await admin
         .from('wa_session')
         .update({ status: 'disconnected', session_data: null })
-        .eq('ulp_id', ulp_id)
+        .eq('user_id', userId)
     })
 
     client.initialize()
