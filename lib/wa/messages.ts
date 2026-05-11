@@ -91,6 +91,7 @@ export function buildPesanLaporanRegu(
   return lines.join('\n')
 }
 
+
 interface LaporanRekap {
   regu_id: string
   nomor_tiket: string

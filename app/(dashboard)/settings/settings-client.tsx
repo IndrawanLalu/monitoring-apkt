@@ -22,11 +22,12 @@ interface Props {
   reguList: Regu[]
   petugasList: Petugas[]
   waSession: WaSession | null
+  templateCallback: string
 }
 
-type Tab = 'wa' | 'regu' | 'petugas'
+type Tab = 'wa' | 'regu' | 'petugas' | 'callback'
 
-export function SettingsClient({ profile, reguList: initialRegu, petugasList: initialPetugas, waSession: initialWa }: Props) {
+export function SettingsClient({ profile, reguList: initialRegu, petugasList: initialPetugas, waSession: initialWa, templateCallback: initialTemplate }: Props) {
   const [tab, setTab] = useState<Tab>('wa')
   const [waSession, setWaSession] = useState<WaSession | null>(initialWa)
   const [reguList, setReguList] = useState<Regu[]>(initialRegu)
@@ -126,6 +127,7 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
           { key: 'wa', label: '📱 WhatsApp' },
           { key: 'regu', label: '👷 Regu & Petugas' },
           { key: 'petugas', label: '👤 Petugas' },
+          { key: 'callback', label: '📞 Template Callback' },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -320,6 +322,11 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
         {tab === 'petugas' && (
           <PetugasTab ulpId={ulpId} reguList={reguList} petugasList={petugasList} setPetugasList={setPetugasList} />
         )}
+
+        {/* ── CALLBACK TEMPLATE TAB ── */}
+        {tab === 'callback' && (
+          <CallbackTemplateTab ulpId={ulpId} initialTemplate={initialTemplate} />
+        )}
       </div>
     </div>
   )
@@ -472,6 +479,67 @@ function PetugasTab({ ulpId, reguList, petugasList, setPetugasList }: {
           <div className="neo-border p-4 text-center text-sm text-gray-400 bg-neo-gray">Belum ada petugas</div>
         )}
       </div>
+    </div>
+  )
+}
+
+/* ── CALLBACK TEMPLATE SUB-COMPONENT ── */
+function CallbackTemplateTab({ ulpId, initialTemplate }: { ulpId: string; initialTemplate: string }) {
+  const [template, setTemplate] = useState(initialTemplate)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    setSaved(false)
+    await fetch(`/api/ulp/${ulpId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wa_template_callback: template }),
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  return (
+    <div className="max-w-lg mx-auto flex flex-col gap-4">
+      <h2 className="text-xl font-black uppercase tracking-wide">Template Pesan CC Callback</h2>
+
+      <Card>
+        <div className="p-4 border-b-2 border-neo-black bg-neo-gray">
+          <h3 className="font-black text-sm">Pesan yang dikirim ke pelanggan</h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Gunakan variabel: <code className="bg-white px-1">{'{nama}'}</code>{' '}
+            <code className="bg-white px-1">{'{nomor_tiket}'}</code>{' '}
+            <code className="bg-white px-1">{'{lokasi}'}</code>{' '}
+            <code className="bg-white px-1">{'{regu}'}</code>{' '}
+            <code className="bg-white px-1">{'{ulp}'}</code>{' '}
+            <code className="bg-white px-1">{'{keterangan}'}</code>{' '}
+            <code className="bg-white px-1">{'{link_antrian}'}</code>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Format WA: <code className="bg-white px-1">*teks tebal*</code>
+          </p>
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          <textarea
+            rows={10}
+            value={template}
+            onChange={(e) => { setTemplate(e.target.value); setSaved(false) }}
+            className="neo-input w-full px-3 py-2 text-sm font-mono resize-y"
+            placeholder="Tulis template pesan di sini..."
+          />
+          <div className="flex items-center gap-3">
+            <Button variant="primary" loading={saving} onClick={handleSave} className="flex-1">
+              Simpan Template
+            </Button>
+            {saved && (
+              <span className="text-sm font-bold text-pln-green">✓ Tersimpan</span>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { z } from 'zod'
 const patchSchema = z.object({
   wa_grup_id: z.string().nullable().optional(),
   nama: z.string().min(1).max(100).optional(),
+  wa_template_callback: z.string().nullable().optional(),
 })
 
 export async function PATCH(

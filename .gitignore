@@ -43,5 +43,8 @@ next-env.d.ts
 # WhatsApp sessions (data sensitif)
 wa-sessions/
 
+# APKT session (cookies login — data sensitif)
+.apkt-session.json
+
 # OS
 Thumbs.db

@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: '📺' },
   { href: '/piket', label: 'Piket', icon: '📅' },
   { href: '/laporan', label: 'Laporan', icon: '📋' },
+  { href: '/callback', label: 'Callback', icon: '📞' },
   { href: '/settings', label: 'Pengaturan', icon: '⚙️' },
 ]
 
