@@ -5,9 +5,6 @@ interface Props {
   params: Promise<{ token: string }>
 }
 
-export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Antrian Laporan — PLN' }
-
 export default async function AntrinanPage({ params }: Props) {
   const { token } = await params
   const admin = createAdminClient()
