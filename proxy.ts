@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Halaman antrian publik untuk pelanggan
-  if (pathname.startsWith("/antrian/")) {
+  if (pathname.startsWith("/antrian")) {
     return supabaseResponse;
   }
 

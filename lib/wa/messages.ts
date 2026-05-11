@@ -91,6 +91,24 @@ export function buildPesanLaporanRegu(
   return lines.join('\n')
 }
 
+interface ApktPenugasanWa {
+  nomorLapor: string
+  namaPelanggan: string
+  lokasi: string
+  statusApkt: string
+  namaRegu: string
+}
+
+export function buildPesanApktPenugasan(data: ApktPenugasanWa): string {
+  return [
+    `📋 *PENUGASAN APKT*`,
+    `🎫 No. Tiket : #${data.nomorLapor}`,
+    `👤 Pelanggan : ${data.namaPelanggan}`,
+    `📍 Lokasi    : ${data.lokasi}`,
+    `📊 Status    : ${data.statusApkt}`,
+    `👷 Ditugaskan: ${data.namaRegu}`,
+  ].join('\n')
+}
 
 interface LaporanRekap {
   regu_id: string
