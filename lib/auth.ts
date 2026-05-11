@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -17,7 +18,7 @@ export interface UserProfile {
   activeUlp: UlpInfo
 }
 
-export async function getProfile(): Promise<UserProfile | null> {
+export const getProfile = cache(async function getProfile(): Promise<UserProfile | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
@@ -52,4 +53,4 @@ export async function getProfile(): Promise<UserProfile | null> {
     ulps,
     activeUlp,
   }
-}
+})

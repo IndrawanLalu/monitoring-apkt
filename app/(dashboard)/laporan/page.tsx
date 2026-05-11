@@ -1,37 +1,63 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { LaporanClient } from './laporan-client'
 import { getProfile } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
+import { normJoin } from '@/lib/utils/format'
+import { RekapClient, type LaporanRekap, type ReguItem, type PiketItem } from './laporan-client'
 
 export const dynamic = 'force-dynamic'
 
-export default async function LaporanPage() {
+function todayWIB(): string {
+  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000)
+  return wib.toISOString().split('T')[0]
+}
+
+export default async function LaporanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tanggal?: string }>
+}) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
+  const { tanggal: tanggalParam } = await searchParams
+  const tanggal = tanggalParam ?? todayWIB()
   const ulpId = profile.activeUlp.id
   const supabase = await createClient()
 
-  const [{ data: laporanList }, { data: reguList }] = await Promise.all([
+  const [{ data: laporanRaw }, { data: reguRaw }, { data: piketRaw }] = await Promise.all([
     supabase
       .from('laporan')
-      .select('id, nomor_tiket, ulp_id, regu_id, nama_pelanggan, nomor_pelanggan, lokasi, status, keterangan, magic_token, wa_message_id, created_at, updated_at, resolved_at, piket_id')
+      .select('id, status, regu_id, piket_id')
       .eq('ulp_id', ulpId)
-      .order('created_at', { ascending: false })
-      .limit(200),
+      .gte('created_at', `${tanggal}T00:00:00+07:00`)
+      .lte('created_at', `${tanggal}T23:59:59.999+07:00`),
     supabase
       .from('regu')
-      .select('id, ulp_id, nama, created_at')
+      .select('id, nama')
       .eq('ulp_id', ulpId)
       .order('nama'),
+    supabase
+      .from('piket')
+      .select('id, tanggal, shift_type_id, shift_type(id, nama, jam_mulai, jam_selesai)')
+      .eq('ulp_id', ulpId)
+      .eq('tanggal', tanggal),
   ])
 
+  const piketList: PiketItem[] = (piketRaw ?? []).map((p) => ({
+    id: p.id as string,
+    tanggal: p.tanggal as string,
+    shift_type_id: p.shift_type_id as string,
+    shift_type: normJoin(
+      p.shift_type as unknown as { id: string; nama: string; jam_mulai: string; jam_selesai: string } | null,
+    ),
+  }))
+
   return (
-    <LaporanClient
-      ulpId={ulpId}
-      role={profile.role}
-      laporanList={laporanList ?? []}
-      reguList={reguList ?? []}
+    <RekapClient
+      tanggal={tanggal}
+      laporanList={(laporanRaw ?? []) as LaporanRekap[]}
+      reguList={(reguRaw ?? []) as ReguItem[]}
+      piketList={piketList}
     />
   )
 }

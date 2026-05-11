@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils/cn'
 import type { UserProfile } from '@/lib/auth'
@@ -11,10 +12,10 @@ interface NavbarProps {
 }
 
 const NAV_ITEMS = [
+  { href: '/callback', label: 'Callback', icon: '📞' },
   { href: '/dashboard', label: 'Dashboard', icon: '📺' },
   { href: '/piket', label: 'Piket', icon: '📅' },
-  { href: '/laporan', label: 'Laporan', icon: '📋' },
-  { href: '/callback', label: 'Callback', icon: '📞' },
+  { href: '/laporan', label: 'Rekap', icon: '📊' },
   { href: '/apkt', label: 'APKT', icon: '🔗' },
   { href: '/settings', label: 'Pengaturan', icon: '⚙️' },
 ]
@@ -23,8 +24,6 @@ export function Navbar({ profile }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [pendingHref, setPendingHref] = useState<string | null>(null)
   const [switchingUlp, setSwitchingUlp] = useState(false)
 
   async function handleLogout() {
@@ -33,14 +32,6 @@ export function Navbar({ profile }: NavbarProps) {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
-  }
-
-  function handleNav(href: string) {
-    if (pathname === href) return
-    setPendingHref(href)
-    startTransition(() => {
-      router.push(href)
-    })
   }
 
   async function handleSwitchUlp(ulpId: string) {
@@ -54,8 +45,6 @@ export function Navbar({ profile }: NavbarProps) {
     router.refresh()
     setSwitchingUlp(false)
   }
-
-  const isNavLoading = isPending
 
   return (
     <nav className="flex items-center justify-between px-4 h-12 border-b-2 border-neo-black bg-pln-blue shrink-0">
@@ -91,26 +80,21 @@ export function Navbar({ profile }: NavbarProps) {
       <div className="flex items-center gap-0">
         {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href)
-          const loading = isNavLoading && pendingHref === item.href
           return (
-            <button
+            <Link
               key={item.href}
-              onClick={() => handleNav(item.href)}
-              disabled={isNavLoading}
+              href={item.href}
+              prefetch={true}
               className={cn(
-                'flex items-center gap-1.5 px-3 h-12 text-sm font-bold transition-colors border-r border-white/10 last:border-r-0 cursor-pointer disabled:cursor-default',
+                'flex items-center gap-1.5 px-3 h-12 text-sm font-bold transition-colors border-r border-white/10 last:border-r-0',
                 active
                   ? 'bg-pln-yellow text-neo-black'
                   : 'text-white hover:bg-white/10',
               )}
             >
-              {loading ? (
-                <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <span className="text-base">{item.icon}</span>
-              )}
+              <span className="text-base">{item.icon}</span>
               <span className="hidden md:block">{item.label}</span>
-            </button>
+            </Link>
           )
         })}
       </div>

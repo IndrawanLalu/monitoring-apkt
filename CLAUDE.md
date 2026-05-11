@@ -259,6 +259,38 @@ hooks/
 
 ---
 
+## Middleware & Routing
+
+### Auth Middleware
+- File auth middleware adalah **`proxy.ts`** (bukan `middleware.ts` — file itu kosong).
+- `proxy.ts` diekspor sebagai fungsi `proxy()` yang dipanggil dari `middleware.ts`.
+- Konfigurasi `matcher` juga ada di `proxy.ts` (bukan `middleware.ts`).
+
+### Public Routes
+Public routes dikonfigurasi di `proxy.ts` dengan pola `pathname.startsWith("/route")`.
+
+**PENTING — TANPA trailing slash:**
+```ts
+// ✅ Benar — match /antrian, /antrian/, /antrian/abc
+if (pathname.startsWith("/antrian")) { return supabaseResponse }
+
+// ❌ Salah — tidak match /antrian tanpa slash
+if (pathname.startsWith("/antrian/")) { return supabaseResponse }
+```
+
+Public routes saat ini:
+- `/magic/*` — magic link petugas lapangan
+- `/antrian/*` — halaman antrian untuk pelanggan (no auth)
+- `/login` — auth page
+
+### Halaman Antrian Pelanggan
+- Route: `/antrian/[token]` — publik, no auth required
+- Token sama dengan `magic_token` di tabel `laporan`
+- API: `/api/antrian/[token]` — GET, return posisi antrian + status
+- Page adalah Server Component, fetch SSR lalu pass ke `AntrinanClient` (polling 15 detik)
+
+---
+
 ## Environment Variables
 
 ```env
@@ -279,15 +311,18 @@ WA_SESSION_DIR=./wa-sessions
 
 ## Feature Checklist
 
-- [ ] Auth (login CC & Supervisor, per ULP)
+- [x] Auth (login CC & Supervisor, per ULP)
 - [ ] Dashboard full-screen per regu + real-time
-- [ ] Input laporan (form CC)
-- [ ] Update status laporan (CC di app)
-- [ ] Magic link (halaman mobile-friendly untuk petugas)
-- [ ] Kirim WA otomatis saat laporan baru
-- [ ] Reply WA thread saat status update
-- [ ] Tombol kirim laporan per regu (manual CC)
-- [ ] Tombol rekap serah terima piket
+- [x] Input laporan (form CC)
+- [x] Update status laporan (CC di app)
+- [x] Magic link (halaman mobile-friendly untuk petugas)
+- [x] Halaman antrian pelanggan (`/antrian/[token]`) — SSR + polling 15 detik
+- [x] CC Callback — input laporan dari telpon, auto buka WA ke pelanggan dengan link antrian
+- [x] Kirim WA otomatis saat laporan baru
+- [x] Reply WA thread saat status update
+- [x] Tombol kirim laporan per regu (manual CC)
+- [x] Tombol rekap serah terima piket
+- [ ] APKT integration (in progress — `app/(dashboard)/apkt/`, belum di-commit)
 - [ ] Manajemen ULP, Regu, Petugas (admin)
 - [ ] Manajemen Shift & Piket
 - [ ] Riwayat status per laporan

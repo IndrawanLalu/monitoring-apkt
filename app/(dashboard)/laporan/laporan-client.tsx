@@ -1,169 +1,130 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState, useMemo } from 'react'
-import { StatusBadge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Modal } from '@/components/ui/modal'
-import { Select, Textarea } from '@/components/ui/input'
-import { LaporanForm } from '@/components/laporan/laporan-form'
-import { STATUS_LAPORAN, STATUS_LABEL, STATUS_EMOJI } from '@/constants'
-import { formatTanggalWaktu, formatRelative } from '@/lib/utils/format'
-import { createClient } from '@/lib/supabase/client'
-import type { Laporan, Regu, RiwayatStatus, StatusLaporan } from '@/types'
-import type { CreateLaporanInput } from '@/lib/validations/laporan'
+import { STATUS_COLOR } from '@/constants'
+import type { StatusLaporan } from '@/constants'
+import { formatTanggal, formatShiftLabel } from '@/lib/utils/format'
 
-const UPDATED_BY_LABEL: Record<string, string> = {
-  cc: 'Command Center',
-  petugas: 'Petugas',
-  system: 'Sistem',
+export interface LaporanRekap {
+  id: string
+  status: StatusLaporan
+  regu_id: string
+  piket_id: string | null
+}
+
+export interface ReguItem {
+  id: string
+  nama: string
+}
+
+export interface PiketItem {
+  id: string
+  tanggal: string
+  shift_type_id: string
+  shift_type: { id: string; nama: string; jam_mulai: string; jam_selesai: string } | null
 }
 
 interface Props {
-  ulpId: string
-  role: string
-  laporanList: Laporan[]
-  reguList: Regu[]
+  tanggal: string
+  laporanList: LaporanRekap[]
+  reguList: ReguItem[]
+  piketList: PiketItem[]
 }
 
-export function LaporanClient({ ulpId, role, laporanList: initial, reguList }: Props) {
-  const [laporanList, setLaporanList] = useState<Laporan[]>(initial)
-  const [filterStatus, setFilterStatus] = useState<StatusLaporan | 'semua'>('semua')
-  const [filterRegu, setFilterRegu] = useState<string>('semua')
-  const [search, setSearch] = useState('')
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  const [updateModal, setUpdateModal] = useState<Laporan | null>(null)
-  const [updateStatus, setUpdateStatus] = useState<StatusLaporan>('lapor')
-  const [updateKeterangan, setUpdateKeterangan] = useState('')
-  const [updating, setUpdating] = useState(false)
-  const [riwayatModal, setRiwayatModal] = useState<Laporan | null>(null)
-  const [riwayatList, setRiwayatList] = useState<RiwayatStatus[]>([])
-  const [riwayatLoading, setRiwayatLoading] = useState(false)
+type StatusCounts = Record<StatusLaporan, number>
 
-  const canManage = role === 'admin' || role === 'supervisor' || role === 'cc'
+const STATUS_COLS: { key: StatusLaporan; label: string }[] = [
+  { key: 'lapor', label: 'Lapor' },
+  { key: 'ditangani', label: 'Proses' },
+  { key: 'nyala_sementara', label: 'Hold' },
+  { key: 'selesai', label: 'Selesai' },
+]
 
-  const filtered = useMemo(() => {
-    return laporanList.filter((l) => {
-      if (filterStatus !== 'semua' && l.status !== filterStatus) return false
-      if (filterRegu !== 'semua' && l.regu_id !== filterRegu) return false
-      if (search) {
-        const q = search.toLowerCase()
-        return (
-          l.nomor_tiket.toLowerCase().includes(q) ||
-          l.nama_pelanggan.toLowerCase().includes(q) ||
-          l.lokasi.toLowerCase().includes(q)
-        )
-      }
-      return true
-    })
-  }, [laporanList, filterStatus, filterRegu, search])
-
-  const reguMap = useMemo(() => {
-    const m: Record<string, string> = {}
-    reguList.forEach((r) => (m[r.id] = r.nama))
-    return m
-  }, [reguList])
-
-  async function handleAddLaporan(data: CreateLaporanInput): Promise<{ error?: string }> {
-    const res = await fetch('/api/laporan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, ulp_id: ulpId }),
-    })
-    const json = await res.json()
-    if (!res.ok || json.error) return { error: json.error }
-    setLaporanList((prev) => [json.data, ...prev])
-    setAddModalOpen(false)
-    return {}
+function countStatus(list: LaporanRekap[]): StatusCounts {
+  return {
+    lapor: list.filter((l) => l.status === 'lapor').length,
+    ditangani: list.filter((l) => l.status === 'ditangani').length,
+    nyala_sementara: list.filter((l) => l.status === 'nyala_sementara').length,
+    selesai: list.filter((l) => l.status === 'selesai').length,
   }
+}
 
-  function openUpdate(laporan: Laporan) {
-    setUpdateModal(laporan)
-    setUpdateStatus(laporan.status)
-    setUpdateKeterangan(laporan.keterangan ?? '')
-  }
+export function RekapClient({ tanggal, laporanList, reguList, piketList }: Props) {
+  const router = useRouter()
+  const [filterPiket, setFilterPiket] = useState('semua')
+  const [filterRegu, setFilterRegu] = useState('semua')
 
-  async function handleOpenRiwayat(laporan: Laporan) {
-    setRiwayatModal(laporan)
-    setRiwayatList([])
-    setRiwayatLoading(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('riwayat_status')
-      .select('id, laporan_id, status_lama, status_baru, keterangan, updated_by, created_at')
-      .eq('laporan_id', laporan.id)
-      .order('created_at', { ascending: true })
-    setRiwayatList((data ?? []) as RiwayatStatus[])
-    setRiwayatLoading(false)
-  }
+  const filtered = useMemo(
+    () =>
+      laporanList.filter((l) => {
+        if (filterPiket !== 'semua' && l.piket_id !== filterPiket) return false
+        if (filterRegu !== 'semua' && l.regu_id !== filterRegu) return false
+        return true
+      }),
+    [laporanList, filterPiket, filterRegu],
+  )
 
-  async function handleUpdate() {
-    if (!updateModal) return
-    setUpdating(true)
-    const res = await fetch(`/api/laporan/${updateModal.id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: updateStatus, keterangan: updateKeterangan || null }),
-    })
-    const json = await res.json()
-    if (res.ok && json.data) {
-      setLaporanList((prev) => prev.map((l) => (l.id === updateModal.id ? json.data : l)))
-    }
-    setUpdating(false)
-    setUpdateModal(null)
-  }
+  const totalCounts = useMemo(() => countStatus(filtered), [filtered])
 
-  const counts = {
-    lapor: laporanList.filter((l) => l.status === 'lapor').length,
-    ditangani: laporanList.filter((l) => l.status === 'ditangani').length,
-    nyala_sementara: laporanList.filter((l) => l.status === 'nyala_sementara').length,
-    selesai: laporanList.filter((l) => l.status === 'selesai').length,
+  const reguRows = useMemo(
+    () =>
+      reguList
+        .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
+        .map((r) => {
+          const rl = filtered.filter((l) => l.regu_id === r.id)
+          return { regu: r, counts: countStatus(rl), total: rl.length }
+        }),
+    [filtered, reguList, filterRegu],
+  )
+
+  const visiblePikets = useMemo(
+    () => (filterPiket === 'semua' ? piketList : piketList.filter((p) => p.id === filterPiket)),
+    [piketList, filterPiket],
+  )
+
+  const tanpaPiket = useMemo(() => filtered.filter((l) => l.piket_id === null), [filtered])
+
+  function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.value) return
+    setFilterPiket('semua')
+    setFilterRegu('semua')
+    router.push(`?tanggal=${e.target.value}`)
   }
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="shrink-0 p-4 border-b-2 border-neo-black bg-neo-white">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-xl font-black text-neo-black uppercase tracking-wide">Daftar Laporan</h1>
-          {canManage && (
-            <Button variant="primary" size="sm" onClick={() => setAddModalOpen(true)}>
-              + Laporan Baru
-            </Button>
-          )}
-        </div>
-
-        {/* Quick stats */}
-        <div className="flex gap-2 mb-3 flex-wrap">
-          {([
-            { status: 'lapor', label: 'Lapor', color: '#E4002B' },
-            { status: 'ditangani', label: 'Proses', color: '#0070C0' },
-            { status: 'nyala_sementara', label: 'Hold', color: '#FFD200' },
-            { status: 'selesai', label: 'Selesai', color: '#1DB954' },
-          ] as const).map(({ status, label, color }) => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(filterStatus === status ? 'semua' : status)}
-              className="neo-button px-3 py-1 text-xs font-bold"
-              style={{
-                backgroundColor: filterStatus === status ? color : '#fff',
-                color: filterStatus === status ? (status === 'nyala_sementara' ? '#1A1A1A' : '#fff') : color,
-                borderColor: color,
-              }}
-            >
-              {counts[status]} {label}
-            </button>
-          ))}
+      <div className="shrink-0 p-4 border-b-2 border-neo-black bg-neo-white space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-xl font-black text-neo-black uppercase tracking-wide">Rekap Laporan</h1>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">{formatTanggal(tanggal + 'T00:00:00')}</p>
+          </div>
+          <input
+            type="date"
+            value={tanggal}
+            onChange={handleDateChange}
+            className="neo-input px-3 py-1.5 text-sm font-bold"
+          />
         </div>
 
         {/* Filters */}
         <div className="flex gap-2 flex-wrap">
-          <input
-            type="text"
-            placeholder="Cari tiket, nama, lokasi..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="neo-input px-3 py-1.5 text-sm flex-1 min-w-48"
-          />
+          <select
+            value={filterPiket}
+            onChange={(e) => setFilterPiket(e.target.value)}
+            className="neo-input px-3 py-1.5 text-sm"
+          >
+            <option value="semua">Semua Piket</option>
+            {piketList.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.shift_type
+                  ? formatShiftLabel(p.shift_type.nama, p.shift_type.jam_mulai, p.shift_type.jam_selesai)
+                  : p.shift_type_id}
+              </option>
+            ))}
+          </select>
           <select
             value={filterRegu}
             onChange={(e) => setFilterRegu(e.target.value)}
@@ -171,198 +132,249 @@ export function LaporanClient({ ulpId, role, laporanList: initial, reguList }: P
           >
             <option value="semua">Semua Regu</option>
             {reguList.map((r) => (
-              <option key={r.id} value={r.id}>{r.nama}</option>
+              <option key={r.id} value={r.id}>
+                {r.nama}
+              </option>
             ))}
           </select>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 bg-neo-black text-white">
-            <tr>
-              <th className="text-left px-3 py-2 font-bold">No. Tiket</th>
-              <th className="text-left px-3 py-2 font-bold">Pelanggan</th>
-              <th className="text-left px-3 py-2 font-bold hidden md:table-cell">Lokasi</th>
-              <th className="text-left px-3 py-2 font-bold hidden lg:table-cell">Regu</th>
-              <th className="text-left px-3 py-2 font-bold">Status</th>
-              <th className="text-left px-3 py-2 font-bold hidden xl:table-cell">Keterangan</th>
-              <th className="text-left px-3 py-2 font-bold hidden lg:table-cell">Waktu</th>
-              <th className="px-3 py-2" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neo-gray">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-gray-400 font-medium">
-                  Tidak ada laporan
-                </td>
-              </tr>
-            ) : (
-              filtered.map((laporan) => (
-                <tr key={laporan.id} className="hover:bg-neo-gray/40 transition-colors">
-                  <td className="px-3 py-2 font-bold font-mono text-xs">#{laporan.nomor_tiket}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium">{laporan.nama_pelanggan}</div>
-                    {laporan.nomor_pelanggan && (
-                      <div className="text-xs text-gray-500">{laporan.nomor_pelanggan}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600 hidden md:table-cell max-w-40 truncate">
-                    {laporan.lokasi}
-                  </td>
-                  <td className="px-3 py-2 text-gray-600 hidden lg:table-cell">
-                    {reguMap[laporan.regu_id] ?? '—'}
-                  </td>
-                  <td className="px-3 py-2">
-                    <StatusBadge status={laporan.status} size="sm" />
-                  </td>
-                  <td className="px-3 py-2 text-gray-500 text-xs italic hidden xl:table-cell max-w-48 truncate">
-                    {laporan.keterangan ?? '—'}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-400 hidden lg:table-cell whitespace-nowrap">
-                    <div>{formatRelative(laporan.created_at)}</div>
-                    <div className="font-mono">{formatTanggalWaktu(laporan.created_at)}</div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1">
-                      <Button variant="secondary" size="sm" onClick={() => handleOpenRiwayat(laporan)}>
-                        Riwayat
-                      </Button>
-                      {canManage && laporan.status !== 'selesai' && (
-                        <Button variant="primary" size="sm" onClick={() => openUpdate(laporan)}>
-                          Update
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Total */}
-      <div className="shrink-0 px-4 py-2 border-t-2 border-neo-black bg-neo-gray text-xs font-medium text-gray-500">
-        Menampilkan {filtered.length} dari {laporanList.length} laporan
-      </div>
-
-      {/* Modal tambah laporan */}
-      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Input Laporan Baru">
-        <LaporanForm
-          reguList={reguList}
-          onSubmit={handleAddLaporan}
-          onCancel={() => setAddModalOpen(false)}
-        />
-      </Modal>
-
-      {/* Modal riwayat status */}
-      <Modal
-        open={!!riwayatModal}
-        onClose={() => setRiwayatModal(null)}
-        title={`Riwayat Status — #${riwayatModal?.nomor_tiket ?? ''}`}
-      >
-        {riwayatModal && (
-          <div className="flex flex-col gap-3 min-w-80">
-            <div className="neo-border p-3 bg-neo-gray text-sm">
-              <p className="font-bold">{riwayatModal.nama_pelanggan}</p>
-              <p className="text-gray-600 text-xs">{riwayatModal.lokasi}</p>
-              <div className="mt-1"><StatusBadge status={riwayatModal.status} size="sm" /></div>
-            </div>
-
-            {riwayatLoading && (
-              <div className="flex items-center justify-center py-6 gap-2 text-sm text-gray-500">
-                <div className="w-4 h-4 border-2 border-pln-blue border-t-transparent rounded-full animate-spin" />
-                Memuat riwayat...
-              </div>
-            )}
-
-            {!riwayatLoading && riwayatList.length === 0 && (
-              <div className="py-6 text-center text-sm text-gray-400">Belum ada riwayat perubahan status</div>
-            )}
-
-            {!riwayatLoading && riwayatList.length > 0 && (
-              <div className="flex flex-col">
-                {riwayatList.map((r, idx) => (
-                  <div key={r.id} className="flex gap-3">
-                    {/* Timeline line */}
-                    <div className="flex flex-col items-center">
-                      <div className="w-3 h-3 rounded-full border-2 border-neo-black bg-pln-yellow shrink-0 mt-1" />
-                      {idx < riwayatList.length - 1 && (
-                        <div className="w-0.5 flex-1 bg-neo-gray my-1" />
-                      )}
-                    </div>
-                    {/* Content */}
-                    <div className="pb-4 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold">
-                          {STATUS_EMOJI[r.status_lama]} {STATUS_LABEL[r.status_lama]}
-                        </span>
-                        <span className="text-xs text-gray-400">→</span>
-                        <span className="text-xs font-bold">
-                          {STATUS_EMOJI[r.status_baru]} {STATUS_LABEL[r.status_baru]}
-                        </span>
-                      </div>
-                      {r.keterangan && (
-                        <p className="text-xs text-gray-600 italic mt-0.5">{r.keterangan}</p>
-                      )}
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {formatTanggalWaktu(r.created_at)} · {UPDATED_BY_LABEL[r.updated_by] ?? r.updated_by}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
-
-      {/* Modal update status */}
-      <Modal
-        open={!!updateModal}
-        onClose={() => setUpdateModal(null)}
-        title={`Update Status — #${updateModal?.nomor_tiket ?? ''}`}
-      >
-        {updateModal && (
-          <div className="flex flex-col gap-4">
-            <div className="neo-border p-3 bg-neo-gray text-sm">
-              <p><span className="font-bold">Pelanggan:</span> {updateModal.nama_pelanggan}</p>
-              <p><span className="font-bold">Lokasi:</span> {updateModal.lokasi}</p>
-              <p><span className="font-bold">Status saat ini:</span> <StatusBadge status={updateModal.status} size="sm" className="ml-1" /></p>
-            </div>
-
-            <Select
-              label="Status Baru"
-              value={updateStatus}
-              onChange={(e) => setUpdateStatus(e.target.value as StatusLaporan)}
-            >
-              {Object.entries(STATUS_LABEL).map(([val, label]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </Select>
-
-            <Textarea
-              label="Keterangan"
-              placeholder="Keterangan update..."
-              rows={3}
-              value={updateKeterangan}
-              onChange={(e) => setUpdateKeterangan(e.target.value)}
+        {/* Summary cards */}
+        <div className="flex gap-2 flex-wrap">
+          <SummaryCard label="Total" value={filtered.length} bg="#003B8E" fg="#FFFFFF" />
+          {STATUS_COLS.map((s) => (
+            <SummaryCard
+              key={s.key}
+              label={s.label}
+              value={totalCounts[s.key]}
+              bg={STATUS_COLOR[s.key].bg}
+              fg={STATUS_COLOR[s.key].text}
             />
+          ))}
+        </div>
+      </div>
 
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setUpdateModal(null)}>
-                Batal
-              </Button>
-              <Button variant="primary" className="flex-1" loading={updating} onClick={handleUpdate}>
-                Simpan
-              </Button>
-            </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        {filtered.length === 0 ? (
+          <div className="flex items-center justify-center py-20 text-gray-400 font-medium">
+            Tidak ada laporan pada tanggal ini
           </div>
+        ) : (
+          <>
+            {/* Per Regu */}
+            <section>
+              <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
+                Rekap per Regu
+              </h2>
+              <ReguTable
+                reguRows={reguRows}
+                totalCounts={totalCounts}
+                grandTotal={filtered.length}
+              />
+            </section>
+
+            {/* Per Piket */}
+            {visiblePikets.length > 0 && (
+              <section>
+                <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
+                  Rekap per Piket
+                </h2>
+                <div className="space-y-4">
+                  {visiblePikets.map((piket) => {
+                    const piketLaporan = filtered.filter((l) => l.piket_id === piket.id)
+                    const piketReguRows = reguList
+                      .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
+                      .map((r) => {
+                        const rl = piketLaporan.filter((l) => l.regu_id === r.id)
+                        return { regu: r, counts: countStatus(rl), total: rl.length }
+                      })
+                      .filter((r) => r.total > 0)
+
+                    const shiftLabel = piket.shift_type
+                      ? formatShiftLabel(
+                          piket.shift_type.nama,
+                          piket.shift_type.jam_mulai,
+                          piket.shift_type.jam_selesai,
+                        )
+                      : piket.shift_type_id
+
+                    return (
+                      <div
+                        key={piket.id}
+                        className="border-2 border-neo-black shadow-neo overflow-hidden"
+                      >
+                        <div
+                          className="px-3 py-2 border-b-2 border-neo-black flex items-center justify-between"
+                          style={{ backgroundColor: '#003B8E' }}
+                        >
+                          <span className="font-black text-sm text-white">{shiftLabel}</span>
+                          <span className="text-xs text-blue-200 font-bold">
+                            {piketLaporan.length} laporan
+                          </span>
+                        </div>
+                        {piketReguRows.length === 0 ? (
+                          <div className="px-3 py-5 text-center text-sm text-gray-400">
+                            Tidak ada laporan
+                          </div>
+                        ) : (
+                          <ReguTable
+                            reguRows={piketReguRows}
+                            totalCounts={countStatus(piketLaporan)}
+                            grandTotal={piketLaporan.length}
+                            compact
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* Tanpa Piket */}
+            {tanpaPiket.length > 0 && filterPiket === 'semua' && (
+              <section>
+                <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
+                  Tanpa Piket
+                </h2>
+                <div className="border-2 border-neo-black shadow-neo overflow-hidden">
+                  <div className="px-3 py-2 border-b-2 border-neo-black flex items-center justify-between bg-neo-gray">
+                    <span className="font-black text-sm text-neo-black">Laporan tanpa piket</span>
+                    <span className="text-xs text-gray-500 font-bold">{tanpaPiket.length} laporan</span>
+                  </div>
+                  <ReguTable
+                    reguRows={reguList
+                      .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
+                      .map((r) => {
+                        const rl = tanpaPiket.filter((l) => l.regu_id === r.id)
+                        return { regu: r, counts: countStatus(rl), total: rl.length }
+                      })
+                      .filter((r) => r.total > 0)}
+                    totalCounts={countStatus(tanpaPiket)}
+                    grandTotal={tanpaPiket.length}
+                    compact
+                  />
+                </div>
+              </section>
+            )}
+          </>
         )}
-      </Modal>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Sub-components ─── */
+
+interface ReguRow {
+  regu: ReguItem
+  counts: StatusCounts
+  total: number
+}
+
+function ReguTable({
+  reguRows,
+  totalCounts,
+  grandTotal,
+  compact = false,
+}: {
+  reguRows: ReguRow[]
+  totalCounts: StatusCounts
+  grandTotal: number
+  compact?: boolean
+}) {
+  const px = compact ? 'px-3 py-1.5' : 'px-3 py-2'
+  const showFooter = reguRows.length > 1
+
+  return (
+    <div className={compact ? '' : 'border-2 border-neo-black shadow-neo overflow-x-auto'}>
+      <table className="w-full text-sm border-collapse">
+        <thead className={compact ? 'bg-neo-gray' : 'bg-neo-black text-white'}>
+          <tr>
+            <th className={`text-left ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}>
+              Regu
+            </th>
+            {STATUS_COLS.map((s) => (
+              <th
+                key={s.key}
+                className={`text-center ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}
+              >
+                {s.label}
+              </th>
+            ))}
+            <th
+              className={`text-center ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}
+            >
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neo-gray">
+          {reguRows.map(({ regu, counts, total }) => (
+            <tr key={regu.id} className="hover:bg-neo-gray/40 transition-colors">
+              <td className={`${px} font-bold`}>{regu.nama}</td>
+              {STATUS_COLS.map((s) => (
+                <td key={s.key} className={`text-center ${px}`}>
+                  {counts[s.key] > 0 ? (
+                    <span
+                      className="inline-flex items-center justify-center w-7 h-7 font-black text-xs border border-neo-black"
+                      style={{
+                        backgroundColor: STATUS_COLOR[s.key].bg,
+                        color: STATUS_COLOR[s.key].text,
+                      }}
+                    >
+                      {counts[s.key]}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
+                </td>
+              ))}
+              <td className={`text-center ${px} font-black`}>{total > 0 ? total : <span className="text-gray-300">—</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+        {showFooter && (
+          <tfoot className="border-t-2 border-neo-black bg-neo-gray">
+            <tr>
+              <td className={`${px} font-black text-xs uppercase`}>Total</td>
+              {STATUS_COLS.map((s) => (
+                <td key={s.key} className={`text-center ${px} font-black text-xs`}>
+                  {totalCounts[s.key] > 0 ? totalCounts[s.key] : '—'}
+                </td>
+              ))}
+              <td className={`text-center ${px} font-black text-xs`}>{grandTotal}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  )
+}
+
+function SummaryCard({
+  label,
+  value,
+  bg,
+  fg,
+}: {
+  label: string
+  value: number
+  bg: string
+  fg: string
+}) {
+  return (
+    <div
+      className="border-2 border-neo-black px-4 py-2 flex flex-col items-center min-w-16 shrink-0"
+      style={{ backgroundColor: bg }}
+    >
+      <span className="text-2xl font-black leading-none" style={{ color: fg }}>
+        {value}
+      </span>
+      <span className="text-xs font-bold mt-0.5" style={{ color: fg }}>
+        {label}
+      </span>
     </div>
   )
 }
