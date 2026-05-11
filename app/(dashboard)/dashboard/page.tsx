@@ -5,11 +5,24 @@ import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
+function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): boolean {
+  const [mh, mm] = jamMulai.split(':').map(Number)
+  const [sh, sm] = jamSelesai.split(':').map(Number)
+  const mulai = mh * 60 + (mm ?? 0)
+  const selesai = sh * 60 + (sm ?? 0)
+  if (selesai > mulai) return nowM >= mulai && nowM < selesai
+  return nowM >= mulai || nowM < selesai
+}
+
 export default async function DashboardPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  const today = new Date().toISOString().split('T')[0]
+  // Tanggal & jam WITA (server berjalan di UTC, WITA = UTC+8)
+  const nowUtc = new Date()
+  const nowWita = new Date(nowUtc.getTime() + 8 * 60 * 60 * 1000)
+  const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
+  const today = nowWita.toISOString().split('T')[0]
   const supabase = await createClient()
   const ulpIds = profile.ulps.map((u) => u.id)
 
@@ -45,13 +58,20 @@ export default async function DashboardPage() {
   })
 
   const ulpDataList = profile.ulps.map((ulp) => {
-    const piket = (piketsRes.data ?? []).find((p) => p.ulp_id === ulp.id) ?? null
+    const todayPikets = (piketsRes.data ?? []).filter((p) => p.ulp_id === ulp.id)
+    const activePiket =
+      todayPikets.find((p) => {
+        const st = p.shift_type as unknown as { jam_mulai: string; jam_selesai: string }
+        return isShiftActive(st.jam_mulai, st.jam_selesai, nowM)
+      }) ?? null
     const reguList = (regusRes.data ?? []).filter((r) => r.ulp_id === ulp.id)
     const laporanList = (laporansRes.data ?? []).filter((l) => l.ulp_id === ulp.id)
-    const petugasList = piket
-      ? petugasFlatList.filter((p) => p.piket_id === piket.id)
+    const petugasList = activePiket
+      ? petugasFlatList.filter((p) => p.piket_id === activePiket.id)
       : []
-    return { ulp, piket, reguList, petugasList, laporanList }
+    // Piket tanpa petugas = belum ada piket aktif
+    const piket = petugasList.length > 0 ? activePiket : null
+    return { ulp, piket, reguList, petugasList: piket ? petugasList : [], laporanList }
   })
 
   return (

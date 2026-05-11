@@ -64,10 +64,10 @@ Perusahaan (PLN)
 
 ```sql
 -- Multi-tenant root
-ulp (id, nama, kode, wa_grup_id)
+ulp (id, nama, kode, wa_grup_id, wa_template_callback)
 
 -- Organisasi
-regu (id, ulp_id, nama)
+regu (id, ulp_id, nama, nomor_hp)   -- nomor_hp: ALTER TABLE regu ADD COLUMN nomor_hp text
 petugas (id, ulp_id, regu_id, nama, nomor_hp)
 
 -- Shift
@@ -291,6 +291,31 @@ Public routes saat ini:
 
 ---
 
+## Timezone
+
+Deployment ini menggunakan **WITA (UTC+8)** — bukan WIB (UTC+7).
+
+Semua komputasi tanggal/jam di sisi server (Server Component & API route) harus pakai offset +8:
+```ts
+const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
+const today = nowWita.toISOString().split('T')[0]
+const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
+```
+
+Di sisi client (browser), `new Date().getHours()` sudah WITA karena device user berada di zona WITA — tidak perlu offset manual.
+
+Fungsi `isShiftActive(jamMulai, jamSelesai, nowM)` dipakai di server (dashboard, callback) dan client (piket). Pastikan `nowM` yang dipass ke versi server sudah dihitung dari WITA.
+
+---
+
+## Piket & Callback Rules
+
+- **Piket tanpa petugas = tidak ada piket aktif**: Dashboard dan callback memperlakukan piket yang tidak punya satu pun entri `piket_petugas` sebagai "belum ada piket aktif".
+- **Callback regu**: Dropdown regu di CC Callback hanya menampilkan regu yang terdaftar di `piket_petugas` piket aktif ULP saat ini. Jika tidak ada piket aktif, form disabled dengan pesan link ke halaman Piket.
+- **Template WA Callback**: Variabel yang tersedia: `{nama}` `{nomor_tiket}` `{lokasi}` `{regu}` `{ulp}` `{keterangan}` `{link_antrian}` `{no_hp}` — `{no_hp}` adalah `nomor_hp` dari tabel `regu` (bukan nomor pelanggan).
+
+---
+
 ## Environment Variables
 
 ```env
@@ -312,18 +337,20 @@ WA_SESSION_DIR=./wa-sessions
 ## Feature Checklist
 
 - [x] Auth (login CC & Supervisor, per ULP)
-- [ ] Dashboard full-screen per regu + real-time
+- [x] Dashboard full-screen per regu + real-time (auto-refresh saat shift berganti)
 - [x] Input laporan (form CC)
 - [x] Update status laporan (CC di app)
 - [x] Magic link (halaman mobile-friendly untuk petugas)
 - [x] Halaman antrian pelanggan (`/antrian/[token]`) — SSR + polling 15 detik
-- [x] CC Callback — input laporan dari telpon, auto buka WA ke pelanggan dengan link antrian
+- [x] CC Callback — regu filter dari piket aktif, disabled jika tidak ada piket aktif
 - [x] Kirim WA otomatis saat laporan baru
 - [x] Reply WA thread saat status update
 - [x] Tombol kirim laporan per regu (manual CC)
 - [x] Tombol rekap serah terima piket
+- [x] Rekap Laporan harian — filter tanggal/piket/regu, per-regu & per-piket breakdown
+- [x] Manajemen Regu — CRUD + nomor HP regu (perlu migrasi DB: `ALTER TABLE regu ADD COLUMN nomor_hp text`)
 - [ ] APKT integration (in progress — `app/(dashboard)/apkt/`, belum di-commit)
-- [ ] Manajemen ULP, Regu, Petugas (admin)
+- [ ] Manajemen ULP, Petugas (admin)
 - [ ] Manajemen Shift & Piket
 - [ ] Riwayat status per laporan
 - [ ] Multi-ULP isolation (RLS)

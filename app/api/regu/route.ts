@@ -6,6 +6,7 @@ import { z } from 'zod'
 const schema = z.object({
   ulp_id: z.string().uuid(),
   nama: z.string().min(1).max(50),
+  nomor_hp: z.string().max(20).nullable().optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await admin
     .from('regu')
     .insert(parsed.data)
-    .select('id, ulp_id, nama, created_at')
+    .select('id, ulp_id, nama, nomor_hp, created_at')
     .single()
 
   if (error) {

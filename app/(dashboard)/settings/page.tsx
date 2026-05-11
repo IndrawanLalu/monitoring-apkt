@@ -31,7 +31,7 @@ export default async function SettingsPage() {
   const [{ data: reguList }, { data: petugasList }, { data: waSession }, { data: ulpData }] = await Promise.all([
     supabase
       .from('regu')
-      .select('id, ulp_id, nama, created_at')
+      .select('id, ulp_id, nama, nomor_hp, created_at')
       .eq('ulp_id', ulpId)
       .order('nama'),
     supabase

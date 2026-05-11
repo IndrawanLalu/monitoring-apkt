@@ -61,6 +61,27 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     return () => clearInterval(t)
   }, [])
 
+  // Auto-refresh saat jam shift berakhir agar piket aktif terupdate
+  useEffect(() => {
+    const pikets = ulpDataList.map((d) => d.piket).filter(Boolean)
+    if (pikets.length === 0) return
+
+    const now = new Date()
+    const nowMs = now.getTime()
+
+    const delays = pikets.map((piket) => {
+      const [sh, sm] = piket!.shift_type.jam_selesai.split(':').map(Number)
+      const target = new Date(now)
+      target.setHours(sh, sm, 0, 0)
+      if (target.getTime() <= nowMs) target.setDate(target.getDate() + 1)
+      return target.getTime() - nowMs
+    })
+
+    const soonest = Math.min(...delays)
+    const timer = setTimeout(() => router.refresh(), soonest)
+    return () => clearTimeout(timer)
+  }, [ulpDataList, router])
+
   const ulpIds = ulpDataList.map((d) => d.ulp.id)
 
   const handleRealtimeInsert = useCallback((laporan: Laporan) => {

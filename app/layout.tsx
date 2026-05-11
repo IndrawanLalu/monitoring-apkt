@@ -1,30 +1,36 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import NextTopLoader from 'nextjs-toploader'
-import './globals.css'
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
+import "./globals.css";
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-})
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-})
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: 'Monitoring APKT — PLN',
-  description: 'Sistem monitoring laporan gangguan pelanggan PLN',
-}
+  title: "Monitoring APKT — PLN",
+  description: "Sistem monitoring laporan gangguan pelanggan PLN",
+  icons: {
+    icon: [{ url: "/live-chat.png", type: "image/png" }],
+  },
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
+    <html
+      lang="id"
+      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+    >
       <body className="h-full antialiased" suppressHydrationWarning>
         <NextTopLoader
           color="#FFD200"
@@ -41,5 +47,5 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-  )
+  );
 }

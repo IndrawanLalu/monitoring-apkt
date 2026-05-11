@@ -14,6 +14,7 @@ export interface Regu {
   id: string
   ulp_id: string
   nama: string
+  nomor_hp: string | null
   created_at: string
   ulp?: Ulp
 }

@@ -9,6 +9,7 @@ interface ReguItem {
   id: string
   ulp_id: string
   nama: string
+  nomor_hp: string | null
   created_at: string
   ulpNama: string
 }
@@ -18,6 +19,7 @@ interface Props {
   ulpId: string
   ulpNama: string
   template: string
+  noActivePiket?: boolean
 }
 
 // ── APKT paste parser ─────────────────────────────────────────────────────────
@@ -63,7 +65,7 @@ function formatNomorWa(nomor: string): string {
   return '62' + clean
 }
 
-function applyTemplate(tpl: string, v: { nama: string; nomor_tiket: string; lokasi: string; regu: string; ulp: string; keterangan: string; link_antrian: string }) {
+function applyTemplate(tpl: string, v: { nama: string; nomor_tiket: string; lokasi: string; regu: string; ulp: string; keterangan: string; link_antrian: string; no_hp: string }) {
   return tpl
     .replace(/\{nama\}/g, v.nama || '...')
     .replace(/\{nomor_tiket\}/g, v.nomor_tiket || '...')
@@ -72,6 +74,7 @@ function applyTemplate(tpl: string, v: { nama: string; nomor_tiket: string; loka
     .replace(/\{ulp\}/g, v.ulp)
     .replace(/\{keterangan\}/g, v.keterangan || '-')
     .replace(/\{link_antrian\}/g, v.link_antrian || '')
+    .replace(/\{no_hp\}/g, v.no_hp || '...')
 }
 
 // ── Preview WA ────────────────────────────────────────────────────────────────
@@ -125,7 +128,8 @@ function WaPreview({ pesan, nomorHp }: { pesan: string; nomorHp: string }) {
           <code className="bg-neo-gray px-0.5">{'{regu}'}</code>{' '}
           <code className="bg-neo-gray px-0.5">{'{ulp}'}</code>{' '}
           <code className="bg-neo-gray px-0.5">{'{keterangan}'}</code>{' '}
-          <code className="bg-neo-gray px-0.5">{'{link_antrian}'}</code>
+          <code className="bg-neo-gray px-0.5">{'{link_antrian}'}</code>{' '}
+          <code className="bg-neo-gray px-0.5">{'{no_hp}'}</code>
         </p>
       </div>
     </div>
@@ -134,13 +138,13 @@ function WaPreview({ pesan, nomorHp }: { pesan: string; nomorHp: string }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
+export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePiket }: Props) {
   const [loading, setLoading] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CreateLaporanInput, string>>>({})
   const [pasteText, setPasteText] = useState('')
   const [showPaste, setShowPaste] = useState(true)
-  const [done, setDone] = useState<{ values: CreateLaporanInput; namaRegu: string; magicToken: string } | null>(null)
+  const [done, setDone] = useState<{ values: CreateLaporanInput; namaRegu: string; magicToken: string; nomorHpRegu: string } | null>(null)
   const [values, setValues] = useState<CreateLaporanInput>({
     nomor_tiket: '', regu_id: '', nama_pelanggan: '', nomor_pelanggan: '',
     lokasi: '', keterangan: '', created_at: undefined, status: 'lapor',
@@ -170,25 +174,27 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
     return Array.from(map.values()).sort((a, b) => a.ulpNama.localeCompare(b.ulpNama))
   }, [reguList])
 
-  const namaRegu = reguList.find((r) => r.id === values.regu_id)?.nama ?? ''
+  const selectedRegu = reguList.find((r) => r.id === values.regu_id)
+  const namaRegu = selectedRegu?.nama ?? ''
+  const nomorHpRegu = selectedRegu?.nomor_hp ?? ''
 
   const pesanWa = useMemo(() =>
     applyTemplate(template, {
       nama: values.nama_pelanggan, nomor_tiket: values.nomor_tiket,
       lokasi: values.lokasi, regu: namaRegu, ulp: ulpNama, keterangan: values.keterangan ?? '',
-      link_antrian: '[link antrian]',
+      link_antrian: '[link antrian]', no_hp: nomorHpRegu,
     }),
-    [template, values.nama_pelanggan, values.nomor_tiket, values.lokasi, namaRegu, ulpNama, values.keterangan],
+    [template, values.nama_pelanggan, values.nomor_tiket, values.lokasi, namaRegu, ulpNama, values.keterangan, nomorHpRegu],
   )
 
-  function bukaWa(v: CreateLaporanInput, nama: string, magicToken = '') {
+  function bukaWa(v: CreateLaporanInput, nama: string, magicToken = '', nomorHpReguVal = '') {
     const nomor = formatNomorWa(v.nomor_pelanggan ?? '')
     if (!nomor || nomor.length < 10) return
     const linkAntrian = magicToken ? `${process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || window.location.origin}/antrian/${magicToken}` : ''
     const pesan = applyTemplate(template, {
       nama: v.nama_pelanggan, nomor_tiket: v.nomor_tiket,
       lokasi: v.lokasi, regu: nama, ulp: ulpNama, keterangan: v.keterangan ?? '',
-      link_antrian: linkAntrian,
+      link_antrian: linkAntrian, no_hp: nomorHpReguVal,
     })
     window.open(`https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`, '_blank')
   }
@@ -213,12 +219,12 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
     setLoading(false)
     if (!res.ok || json.error) { setServerError(json.error ?? 'Gagal menyimpan laporan'); return }
     const magicToken = json.data?.magic_token ?? ''
-    setDone({ values: result.data, namaRegu, magicToken })
-    bukaWa(result.data, namaRegu, magicToken)
+    setDone({ values: result.data, namaRegu, magicToken, nomorHpRegu })
+    bukaWa(result.data, namaRegu, magicToken, nomorHpRegu)
   }
 
   if (done) {
-    const { values: v, namaRegu: nr, magicToken: mt } = done
+    const { values: v, namaRegu: nr, magicToken: mt, nomorHpRegu: nhpRegu } = done
     const nomorWa = formatNomorWa(v.nomor_pelanggan ?? '')
     const nomorValid = nomorWa.length >= 10
     const base = process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')
@@ -265,7 +271,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
                 </button>
               </div>
             )}
-            <button onClick={() => bukaWa(v, nr, mt)} disabled={!nomorValid}
+            <button onClick={() => bukaWa(v, nr, mt, nhpRegu)} disabled={!nomorValid}
               className="w-full py-3 font-black text-sm border-2 border-neo-black bg-[#25D366] text-white shadow-neo hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed">
               📲 Buka WhatsApp Lagi
             </button>
@@ -316,16 +322,25 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-bold text-neo-black block mb-1">Regu *</label>
-                <select value={values.regu_id} onChange={(e) => set('regu_id', e.target.value)}
-                  className="neo-input w-full px-3 py-2 text-sm font-medium">
-                  <option value="">Pilih regu...</option>
-                  {reguByUlp.map(({ ulpNama: uNama, regus }) => (
-                    <optgroup key={uNama} label={uNama}>
-                      {regus.map((r) => <option key={r.id} value={r.id}>{r.nama}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-                {fieldErrors.regu_id && <p className="mt-1 text-xs text-pln-red font-medium">{fieldErrors.regu_id}</p>}
+                {noActivePiket ? (
+                  <div className="border-2 border-pln-red bg-red-50 px-3 py-2 text-sm font-medium text-pln-red">
+                    Tidak ada piket aktif — buat piket dulu di halaman{' '}
+                    <a href="/piket" className="underline font-bold">Piket</a>
+                  </div>
+                ) : (
+                  <>
+                    <select value={values.regu_id} onChange={(e) => set('regu_id', e.target.value)}
+                      className="neo-input w-full px-3 py-2 text-sm font-medium">
+                      <option value="">Pilih regu...</option>
+                      {reguByUlp.map(({ ulpNama: uNama, regus }) => (
+                        <optgroup key={uNama} label={uNama}>
+                          {regus.map((r) => <option key={r.id} value={r.id}>{r.nama}</option>)}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {fieldErrors.regu_id && <p className="mt-1 text-xs text-pln-red font-medium">{fieldErrors.regu_id}</p>}
+                  </>
+                )}
               </div>
               <div className="col-span-2">
                 <Select label="Status Awal" value={values.status ?? 'lapor'}
@@ -360,7 +375,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template }: Props) {
                 <p className="text-sm font-medium text-pln-red">{serverError}</p>
               </div>
             )}
-            <Button type="submit" variant="primary" size="md" className="w-full" loading={loading}>
+            <Button type="submit" variant="primary" size="md" className="w-full" loading={loading} disabled={noActivePiket}>
               Simpan & Buka WhatsApp →
             </Button>
           </form>

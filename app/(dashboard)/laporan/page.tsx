@@ -6,9 +6,9 @@ import { RekapClient, type LaporanRekap, type ReguItem, type PiketItem } from '.
 
 export const dynamic = 'force-dynamic'
 
-function todayWIB(): string {
-  const wib = new Date(Date.now() + 7 * 60 * 60 * 1000)
-  return wib.toISOString().split('T')[0]
+function todayWITA(): string {
+  const wita = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  return wita.toISOString().split('T')[0]
 }
 
 export default async function LaporanPage({
@@ -20,7 +20,7 @@ export default async function LaporanPage({
   if (!profile) redirect('/login')
 
   const { tanggal: tanggalParam } = await searchParams
-  const tanggal = tanggalParam ?? todayWIB()
+  const tanggal = tanggalParam ?? todayWITA()
   const ulpId = profile.activeUlp.id
   const supabase = await createClient()
 

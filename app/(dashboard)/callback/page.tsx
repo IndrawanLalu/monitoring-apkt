@@ -20,35 +20,74 @@ Hormat kami,
 Command Center PLN {ulp}
 Melayani Sepenuh Hati`
 
+function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): boolean {
+  const [mh, mm] = jamMulai.split(':').map(Number)
+  const [sh, sm] = jamSelesai.split(':').map(Number)
+  const mulai = mh * 60 + (mm ?? 0)
+  const selesai = sh * 60 + (sm ?? 0)
+  if (selesai > mulai) return nowM >= mulai && nowM < selesai
+  return nowM >= mulai || nowM < selesai
+}
+
 export default async function CallbackPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
   const admin = createAdminClient()
+  const ulpId = profile.activeUlp.id
 
-  const [{ data: reguRaw }, { data: ulpRaw }, { data: ulpSettings }] = await Promise.all([
-    admin.from('regu').select('id, ulp_id, nama, created_at').order('nama'),
+  // Jam & tanggal WITA (UTC+8)
+  const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
+  const today = nowWita.toISOString().split('T')[0]
+  const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
+
+  const [{ data: reguRaw }, { data: ulpRaw }, { data: ulpSettings }, { data: todayPikets }] = await Promise.all([
+    admin.from('regu').select('id, ulp_id, nama, nomor_hp, created_at').eq('ulp_id', ulpId).order('nama'),
     admin.from('ulp').select('id, nama, kode, wa_grup_id, created_at'),
-    admin.from('ulp').select('wa_template_callback').eq('id', profile.activeUlp.id).maybeSingle(),
+    admin.from('ulp').select('wa_template_callback').eq('id', ulpId).maybeSingle(),
+    admin
+      .from('piket')
+      .select('id, shift_type(jam_mulai, jam_selesai)')
+      .eq('ulp_id', ulpId)
+      .eq('tanggal', today),
   ])
+
+  // Cari piket yang shift-nya sedang aktif sekarang
+  const activePiket = (todayPikets ?? []).find((p) => {
+    const st = p.shift_type as unknown as { jam_mulai: string; jam_selesai: string }
+    return isShiftActive(st.jam_mulai, st.jam_selesai, nowM)
+  }) ?? null
+
+  // Ambil regu_id yang ada di piket aktif
+  let activeReguIds: string[] = []
+  if (activePiket) {
+    const { data: pp } = await admin
+      .from('piket_petugas')
+      .select('regu_id')
+      .eq('piket_id', activePiket.id)
+    activeReguIds = [...new Set((pp ?? []).map((p) => p.regu_id as string))]
+  }
+
+  const noActivePiket = !activePiket || activeReguIds.length === 0
 
   const ulpMap = new Map(
     (ulpRaw ?? []).map((u) => [
       u.id as string,
-      { id: u.id as string, nama: u.nama as string, kode: u.kode as string, wa_grup_id: (u.wa_grup_id ?? null) as string | null, created_at: u.created_at as string },
+      { nama: u.nama as string },
     ]),
   )
 
-  const reguList = (reguRaw ?? []).map((r) => {
-    const ulpItem = ulpMap.get(r.ulp_id as string)
-    return {
+  // Hanya regu yang masuk piket aktif
+  const reguList = (reguRaw ?? [])
+    .filter((r) => !noActivePiket && activeReguIds.includes(r.id as string))
+    .map((r) => ({
       id: r.id as string,
       ulp_id: r.ulp_id as string,
       nama: r.nama as string,
+      nomor_hp: (r.nomor_hp ?? null) as string | null,
       created_at: r.created_at as string,
-      ulpNama: ulpItem?.nama ?? (r.ulp_id as string),
-    }
-  })
+      ulpNama: ulpMap.get(r.ulp_id as string)?.nama ?? (r.ulp_id as string),
+    }))
 
   const raw = ulpSettings as { wa_template_callback?: string | null } | null
   const template: string = raw?.wa_template_callback || TEMPLATE_CALLBACK_DEFAULT
@@ -56,9 +95,10 @@ export default async function CallbackPage() {
   return (
     <CallbackClient
       reguList={reguList}
-      ulpId={String(profile.activeUlp.id)}
+      ulpId={String(ulpId)}
       ulpNama={String(profile.activeUlp.nama)}
       template={template}
+      noActivePiket={noActivePiket}
     />
   )
 }

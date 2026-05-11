@@ -335,7 +335,12 @@ export function SettingsClient({ profile, reguList: initialRegu, petugasList: in
 /* ── REGU SUB-COMPONENT ── */
 function ReguTab({ ulpId, reguList, setReguList }: { ulpId: string; reguList: Regu[]; setReguList: React.Dispatch<React.SetStateAction<Regu[]>> }) {
   const [namaRegu, setNamaRegu] = useState('')
+  const [nomorHpRegu, setNomorHpRegu] = useState('')
   const [loading, setLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editNama, setEditNama] = useState('')
+  const [editNomorHp, setEditNomorHp] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
 
   async function handleTambah() {
     if (!namaRegu.trim()) return
@@ -343,14 +348,36 @@ function ReguTab({ ulpId, reguList, setReguList }: { ulpId: string; reguList: Re
     const res = await fetch('/api/regu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId, nama: namaRegu.trim() }),
+      body: JSON.stringify({ ulp_id: ulpId, nama: namaRegu.trim(), nomor_hp: nomorHpRegu.trim() || null }),
     })
     const json = await res.json()
     if (json.data) {
       setReguList((prev) => [...prev, json.data].sort((a, b) => a.nama.localeCompare(b.nama)))
       setNamaRegu('')
+      setNomorHpRegu('')
     }
     setLoading(false)
+  }
+
+  function startEdit(regu: Regu) {
+    setEditingId(regu.id)
+    setEditNama(regu.nama)
+    setEditNomorHp(regu.nomor_hp ?? '')
+  }
+
+  async function handleSaveEdit(id: string) {
+    setEditLoading(true)
+    const res = await fetch(`/api/regu/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nama: editNama.trim(), nomor_hp: editNomorHp.trim() || null }),
+    })
+    const json = await res.json()
+    if (json.data) {
+      setReguList((prev) => prev.map((r) => r.id === id ? json.data : r))
+      setEditingId(null)
+    }
+    setEditLoading(false)
   }
 
   async function handleHapus(id: string) {
@@ -367,23 +394,67 @@ function ReguTab({ ulpId, reguList, setReguList }: { ulpId: string; reguList: Re
         <div className="p-4 border-b-2 border-neo-black bg-pln-yellow">
           <h3 className="font-black text-sm">+ Tambah Regu</h3>
         </div>
-        <div className="p-4 flex gap-2">
-          <Input
-            placeholder="Nama regu (contoh: Regu 1)"
-            value={namaRegu}
-            onChange={(e) => setNamaRegu(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleTambah()}
-            className="flex-1"
-          />
-          <Button variant="primary" loading={loading} onClick={handleTambah}>Tambah</Button>
+        <div className="p-4 flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="Nama regu (contoh: Regu 1)"
+              value={namaRegu}
+              onChange={(e) => setNamaRegu(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleTambah()}
+              className="flex-1"
+            />
+            <Input
+              placeholder="No. HP (opsional)"
+              value={nomorHpRegu}
+              onChange={(e) => setNomorHpRegu(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleTambah()}
+              className="flex-1"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Button variant="primary" loading={loading} onClick={handleTambah}>Tambah</Button>
+          </div>
         </div>
       </Card>
 
       <div className="flex flex-col gap-2">
         {reguList.map((regu) => (
-          <div key={regu.id} className="neo-border flex items-center justify-between p-3 bg-white">
-            <span className="font-bold text-sm">{regu.nama}</span>
-            <Button variant="danger" size="sm" onClick={() => handleHapus(regu.id)}>Hapus</Button>
+          <div key={regu.id} className="neo-border bg-white">
+            {editingId === regu.id ? (
+              <div className="p-3 flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={editNama}
+                    onChange={(e) => setEditNama(e.target.value)}
+                    className="flex-1 text-sm"
+                    placeholder="Nama regu"
+                  />
+                  <Input
+                    value={editNomorHp}
+                    onChange={(e) => setEditNomorHp(e.target.value)}
+                    className="flex-1 text-sm"
+                    placeholder="No. HP"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="secondary" size="sm" onClick={() => setEditingId(null)}>Batal</Button>
+                  <Button variant="primary" size="sm" loading={editLoading} onClick={() => handleSaveEdit(regu.id)}>Simpan</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 gap-3">
+                <div>
+                  <p className="font-bold text-sm">{regu.nama}</p>
+                  {regu.nomor_hp && (
+                    <p className="text-xs text-gray-500 mt-0.5">{regu.nomor_hp}</p>
+                  )}
+                </div>
+                <div className="flex gap-1.5 shrink-0">
+                  <Button variant="secondary" size="sm" onClick={() => startEdit(regu)}>Edit</Button>
+                  <Button variant="danger" size="sm" onClick={() => handleHapus(regu.id)}>Hapus</Button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         {reguList.length === 0 && (
@@ -516,7 +587,8 @@ function CallbackTemplateTab({ ulpId, initialTemplate }: { ulpId: string; initia
             <code className="bg-white px-1">{'{regu}'}</code>{' '}
             <code className="bg-white px-1">{'{ulp}'}</code>{' '}
             <code className="bg-white px-1">{'{keterangan}'}</code>{' '}
-            <code className="bg-white px-1">{'{link_antrian}'}</code>
+            <code className="bg-white px-1">{'{link_antrian}'}</code>{' '}
+            <code className="bg-white px-1">{'{no_hp}'}</code>
           </p>
           <p className="text-xs text-gray-500 mt-0.5">
             Format WA: <code className="bg-white px-1">*teks tebal*</code>
