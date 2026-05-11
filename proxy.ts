@@ -29,15 +29,22 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
+  const { hostname, pathname } = request.nextUrl;
 
-  // Magic link pages are public (for petugas lapangan)
-  if (pathname.startsWith("/magic/")) {
-    return supabaseResponse;
+  // Aturan khusus untuk domain publik commandcenter.my.id
+  if (hostname === "commandcenter.my.id") {
+    // Di domain publik, hanya izinkan akses ke rute /antrian.
+    if (pathname.startsWith("/antrian")) {
+      return supabaseResponse;
+    }
+    // Semua path lain di domain publik akan menampilkan 404 Not Found.
+    return new NextResponse(null, { status: 404 });
   }
 
-  // Halaman antrian publik untuk pelanggan
-  if (pathname.startsWith("/antrian")) {
+  // Rute publik untuk domain internal (magic link petugas & fallback antrian)
+  const isPublicRoute =
+    pathname.startsWith("/magic") || pathname.startsWith("/antrian");
+  if (isPublicRoute) {
     return supabaseResponse;
   }
 
