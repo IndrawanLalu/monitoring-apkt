@@ -29,7 +29,8 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { hostname, pathname } = request.nextUrl;
+  const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host") ?? "";
 
   // Aturan khusus untuk domain publik commandcenter.my.id
   if (hostname === "commandcenter.my.id") {
