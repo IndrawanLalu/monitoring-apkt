@@ -48,5 +48,11 @@ wa-sessions/
 # APKT session (cookies login — data sensitif)
 .apkt-session.json
 
+# Unfinished Scraping Code
+scripts/
+lib/apkt/
+app/(dashboard)/apkt/
+app/api/apkt/
+
 # OS
 Thumbs.db
