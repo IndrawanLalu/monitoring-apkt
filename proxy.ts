@@ -35,7 +35,7 @@ export async function proxy(request: NextRequest) {
   // Aturan khusus untuk domain publik commandcenter.my.id
   if (hostname === "commandcenter.my.id") {
     // Di domain publik, hanya izinkan akses ke rute /antrian.
-    if (pathname.startsWith("/antrian")) {
+    if (pathname.startsWith("/antrian") || pathname.startsWith("/rekap-laporan")) {
       return supabaseResponse;
     }
     // Semua path lain di domain publik akan menampilkan 404 Not Found.
@@ -44,7 +44,7 @@ export async function proxy(request: NextRequest) {
 
   // Rute publik untuk domain internal (magic link petugas & fallback antrian)
   const isPublicRoute =
-    pathname.startsWith("/magic") || pathname.startsWith("/antrian");
+    pathname.startsWith("/magic") || pathname.startsWith("/antrian") || pathname.startsWith("/rekap-laporan");
   if (isPublicRoute) {
     return supabaseResponse;
   }
