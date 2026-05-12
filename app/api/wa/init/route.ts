@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getOrCreateWaClient, isClientRegistered, markClientRegistered } from '@/lib/wa/client'
+import { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient } from '@/lib/wa/client'
 import QRCode from 'qrcode'
 
 export async function POST(req: NextRequest) {
@@ -50,6 +50,16 @@ export async function POST(req: NextRequest) {
     })
 
     client.on('disconnected', async () => {
+      await destroyWaClient(userId)
+      await admin
+        .from('wa_session')
+        .update({ status: 'disconnected', session_data: null })
+        .eq('user_id', userId)
+    })
+
+    client.on('auth_failure', async () => {
+      console.error(`[WA Auth Failure] user: ${userId}`)
+      await destroyWaClient(userId)
       await admin
         .from('wa_session')
         .update({ status: 'disconnected', session_data: null })
@@ -57,7 +67,15 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  client.initialize()
+  // Initialize async without blocking, but catch error
+  client.initialize().catch(async (err) => {
+    console.error(`[WA Init Error] user: ${userId}`, err)
+    await destroyWaClient(userId)
+    await admin
+      .from('wa_session')
+      .update({ status: 'disconnected', session_data: null })
+      .eq('user_id', userId)
+  })
 
   return NextResponse.json({ success: true, message: 'WhatsApp client initializing...' })
 }

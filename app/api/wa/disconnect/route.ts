@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = user.id
-  destroyWaClient(userId)
+  await destroyWaClient(userId)
 
   const admin = createAdminClient()
   await admin

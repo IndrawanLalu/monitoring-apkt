@@ -1,63 +1,69 @@
-import { redirect } from 'next/navigation'
-import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { normJoin } from '@/lib/utils/format'
-import { RekapClient, type LaporanRekap, type ReguItem, type PiketItem } from './laporan-client'
+import { getProfile } from '@/lib/auth'
+import { LaporanClient } from './laporan-client'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
-
-function todayWITA(): string {
-  const wita = new Date(Date.now() + 8 * 60 * 60 * 1000)
-  return wita.toISOString().split('T')[0]
-}
 
 export default async function LaporanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tanggal?: string }>
+  searchParams: Promise<{ tanggal?: string; shift_id?: string; regu_id?: string }>
 }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  const { tanggal: tanggalParam } = await searchParams
-  const tanggal = tanggalParam ?? todayWITA()
-  const ulpId = profile.activeUlp.id
-  const supabase = await createClient()
+  const { tanggal: tanggalParam, shift_id: selectedShiftId, regu_id: selectedReguId } = await searchParams
 
-  const [{ data: laporanRaw }, { data: reguRaw }, { data: piketRaw }] = await Promise.all([
-    supabase
-      .from('laporan')
-      .select('id, status, regu_id, piket_id')
-      .eq('ulp_id', ulpId)
-      .gte('created_at', `${tanggal}T00:00:00+07:00`)
-      .lte('created_at', `${tanggal}T23:59:59.999+07:00`),
-    supabase
-      .from('regu')
-      .select('id, nama')
-      .eq('ulp_id', ulpId)
-      .order('nama'),
-    supabase
-      .from('piket')
-      .select('id, tanggal, shift_type_id, shift_type(id, nama, jam_mulai, jam_selesai)')
-      .eq('ulp_id', ulpId)
-      .eq('tanggal', tanggal),
+  // Tanggal default: hari ini dalam WITA (UTC+8)
+  const selectedDate = tanggalParam ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const supabase = await createClient()
+  const ulpId = profile.activeUlp.id
+
+  const [{ data: reguList }, { data: shiftTypes }] = await Promise.all([
+    supabase.from('regu').select('id, nama').eq('ulp_id', ulpId).order('nama'),
+    supabase.from('shift_type').select('id, nama').order('nama'),
   ])
 
-  const piketList: PiketItem[] = (piketRaw ?? []).map((p) => ({
-    id: p.id as string,
-    tanggal: p.tanggal as string,
-    shift_type_id: p.shift_type_id as string,
-    shift_type: normJoin(
-      p.shift_type as unknown as { id: string; nama: string; jam_mulai: string; jam_selesai: string } | null,
-    ),
+  let query = supabase
+    .from('laporan')
+    .select('id, nomor_tiket, nama_pelanggan, lokasi, status, keterangan, nama_cc_callback, tanggal_callback, status_callback, created_at, updated_at, regu(nama)')
+    .eq('ulp_id', ulpId)
+    .gte('created_at', `${selectedDate}T00:00:00+08:00`)
+    .lte('created_at', `${selectedDate}T23:59:59+08:00`)
+    .order('created_at', { ascending: false })
+
+  if (selectedReguId) {
+    query = query.eq('regu_id', selectedReguId)
+  }
+
+  if (selectedShiftId) {
+    const { data: piket } = await supabase
+      .from('piket')
+      .select('id')
+      .eq('ulp_id', ulpId)
+      .eq('tanggal', selectedDate)
+      .eq('shift_type_id', selectedShiftId)
+      .single()
+
+    query = query.eq('piket_id', piket?.id ?? '00000000-0000-0000-0000-000000000000')
+  }
+
+  const { data: laporanRaw } = await query
+  
+  // Transform data untuk memastikan regu adalah object (bukan array) demi TS
+  const laporan = (laporanRaw ?? []).map(l => ({
+    ...l,
+    regu: Array.isArray(l.regu) ? (l.regu[0] ?? null) : (l.regu ?? null)
   }))
 
   return (
-    <RekapClient
-      tanggal={tanggal}
-      laporanList={(laporanRaw ?? []) as LaporanRekap[]}
-      reguList={(reguRaw ?? []) as ReguItem[]}
-      piketList={piketList}
+    <LaporanClient
+      initialLaporan={laporan as any}
+      reguList={reguList ?? []}
+      shiftTypes={shiftTypes ?? []}
+      initialFilters={{ tanggal: selectedDate, shift_id: selectedShiftId, regu_id: selectedReguId }}
     />
   )
 }

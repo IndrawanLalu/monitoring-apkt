@@ -40,8 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# WhatsApp sessions (data sensitif)
+# WhatsApp sessions (data sensitif & cache)
 wa-sessions/
+.wwebjs_cache/
+.wwebjs_auth/
 
 # APKT session (cookies login — data sensitif)
 .apkt-session.json

@@ -12,7 +12,8 @@ interface NavbarProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/callback', label: 'Callback', icon: '📞' },
+  { href: '/cc-callback', label: 'CC Call Back', icon: '☎️' },
+  { href: '/callback', label: 'Laporan APKT', icon: '📤' },
   { href: '/dashboard', label: 'Dashboard', icon: '📺' },
   { href: '/piket', label: 'Piket', icon: '📅' },
   { href: '/laporan', label: 'Rekap', icon: '📊' },

@@ -62,7 +62,7 @@ export interface Laporan {
   nomor_tiket: string
   ulp_id: string
   piket_id: string | null
-  regu_id: string
+  regu_id: string | null
   nama_pelanggan: string
   nomor_pelanggan: string | null
   lokasi: string
@@ -73,6 +73,9 @@ export interface Laporan {
   created_at: string
   updated_at: string
   resolved_at: string | null
+  nama_cc_callback?: string | null
+  tanggal_callback?: string | null
+  status_callback?: string | null
   regu?: Regu
   ulp?: Ulp
   piket?: Piket

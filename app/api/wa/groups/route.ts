@@ -12,11 +12,16 @@ export async function POST(req: NextRequest) {
   const client = getWaClient(userId)
 
   if (client) {
-    const chats = await client.getChats()
-    const groups = chats
-      .filter((c) => c.isGroup)
-      .map((c) => ({ nama: c.name, id: c.id._serialized }))
-    return NextResponse.json({ data: groups })
+    try {
+      const chats = await client.getChats()
+      const groups = chats
+        .filter((c) => c.isGroup)
+        .map((c) => ({ nama: c.name, id: c.id._serialized }))
+      return NextResponse.json({ data: groups })
+    } catch (e) {
+      console.error('[WA getChats] Error:', e)
+      // Teruskan ke blok fallback di bawah jika gagal mengambil chat langsung dari client
+    }
   }
 
   // Fallback: baca dari session_data yang tersimpan

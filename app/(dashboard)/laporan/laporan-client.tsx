@@ -1,380 +1,183 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useState, useMemo } from 'react'
-import { STATUS_COLOR } from '@/constants'
-import type { StatusLaporan } from '@/constants'
-import { formatTanggal, formatShiftLabel } from '@/lib/utils/format'
+import { STATUS_LABEL, STATUS_COLOR, SHIFT_LABEL } from '@/constants'
+import type { StatusLaporan, ShiftType } from '@/types'
 
-export interface LaporanRekap {
+interface LaporanRow {
   id: string
+  nomor_tiket: string
+  nama_pelanggan: string
+  lokasi: string
   status: StatusLaporan
-  regu_id: string
-  piket_id: string | null
+  keterangan: string | null
+  nama_cc_callback?: string | null
+  tanggal_callback?: string | null
+  status_callback?: string | null
+  created_at: string
+  updated_at: string
+  regu: { nama: string } | null
 }
 
-export interface ReguItem {
-  id: string
-  nama: string
-}
-
-export interface PiketItem {
-  id: string
+interface Filters {
   tanggal: string
-  shift_type_id: string
-  shift_type: { id: string; nama: string; jam_mulai: string; jam_selesai: string } | null
+  shift_id?: string
+  regu_id?: string
 }
 
 interface Props {
-  tanggal: string
-  laporanList: LaporanRekap[]
-  reguList: ReguItem[]
-  piketList: PiketItem[]
+  initialLaporan: LaporanRow[]
+  reguList: { id: string; nama: string }[]
+  shiftTypes: { id: string; nama: ShiftType }[]
+  initialFilters: Filters
 }
 
-type StatusCounts = Record<StatusLaporan, number>
-
-const STATUS_COLS: { key: StatusLaporan; label: string }[] = [
-  { key: 'lapor', label: 'Lapor' },
-  { key: 'ditangani', label: 'Proses' },
-  { key: 'nyala_sementara', label: 'Hold' },
-  { key: 'selesai', label: 'Selesai' },
-]
-
-function countStatus(list: LaporanRekap[]): StatusCounts {
-  return {
-    lapor: list.filter((l) => l.status === 'lapor').length,
-    ditangani: list.filter((l) => l.status === 'ditangani').length,
-    nyala_sementara: list.filter((l) => l.status === 'nyala_sementara').length,
-    selesai: list.filter((l) => l.status === 'selesai').length,
-  }
+function fmtWaktu(iso: string) {
+  return new Date(iso).toLocaleString('id-ID', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
 }
 
-export function RekapClient({ tanggal, laporanList, reguList, piketList }: Props) {
+export function LaporanClient({ initialLaporan, reguList, shiftTypes, initialFilters }: Props) {
   const router = useRouter()
-  const [filterPiket, setFilterPiket] = useState('semua')
-  const [filterRegu, setFilterRegu] = useState('semua')
+  const [filters, setFilters] = useState<Filters>(initialFilters)
 
-  const filtered = useMemo(
-    () =>
-      laporanList.filter((l) => {
-        if (filterPiket !== 'semua' && l.piket_id !== filterPiket) return false
-        if (filterRegu !== 'semua' && l.regu_id !== filterRegu) return false
-        return true
-      }),
-    [laporanList, filterPiket, filterRegu],
-  )
-
-  const totalCounts = useMemo(() => countStatus(filtered), [filtered])
-
-  const reguRows = useMemo(
-    () =>
-      reguList
-        .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
-        .map((r) => {
-          const rl = filtered.filter((l) => l.regu_id === r.id)
-          return { regu: r, counts: countStatus(rl), total: rl.length }
-        }),
-    [filtered, reguList, filterRegu],
-  )
-
-  const visiblePikets = useMemo(
-    () => (filterPiket === 'semua' ? piketList : piketList.filter((p) => p.id === filterPiket)),
-    [piketList, filterPiket],
-  )
-
-  const tanpaPiket = useMemo(() => filtered.filter((l) => l.piket_id === null), [filtered])
-
-  function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.value) return
-    setFilterPiket('semua')
-    setFilterRegu('semua')
-    router.push(`?tanggal=${e.target.value}`)
+  function applyFilter() {
+    const params = new URLSearchParams()
+    params.set('tanggal', filters.tanggal)
+    if (filters.shift_id) params.set('shift_id', filters.shift_id)
+    if (filters.regu_id) params.set('regu_id', filters.regu_id)
+    router.push(`/laporan?${params.toString()}`)
   }
+
+  const statusCount = initialLaporan.reduce<Record<StatusLaporan, number>>(
+    (acc, l) => { acc[l.status] = (acc[l.status] ?? 0) + 1; return acc },
+    { lapor: 0, ditangani: 0, nyala_sementara: 0, selesai: 0 },
+  )
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 p-4 border-b-2 border-neo-black bg-neo-white space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-xl font-black text-neo-black uppercase tracking-wide">Rekap Laporan</h1>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">{formatTanggal(tanggal + 'T00:00:00')}</p>
-          </div>
-          <input
-            type="date"
-            value={tanggal}
-            onChange={handleDateChange}
-            className="neo-input px-3 py-1.5 text-sm font-bold"
-          />
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 flex-wrap">
-          <select
-            value={filterPiket}
-            onChange={(e) => setFilterPiket(e.target.value)}
-            className="neo-input px-3 py-1.5 text-sm"
-          >
-            <option value="semua">Semua Piket</option>
-            {piketList.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.shift_type
-                  ? formatShiftLabel(p.shift_type.nama, p.shift_type.jam_mulai, p.shift_type.jam_selesai)
-                  : p.shift_type_id}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterRegu}
-            onChange={(e) => setFilterRegu(e.target.value)}
-            className="neo-input px-3 py-1.5 text-sm"
-          >
-            <option value="semua">Semua Regu</option>
-            {reguList.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.nama}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Summary cards */}
-        <div className="flex gap-2 flex-wrap">
-          <SummaryCard label="Total" value={filtered.length} bg="#003B8E" fg="#FFFFFF" />
-          {STATUS_COLS.map((s) => (
-            <SummaryCard
-              key={s.key}
-              label={s.label}
-              value={totalCounts[s.key]}
-              bg={STATUS_COLOR[s.key].bg}
-              fg={STATUS_COLOR[s.key].text}
-            />
+      {/* Filter bar */}
+      <div className="shrink-0 border-b-2 border-neo-black bg-neo-white px-4 py-3 flex items-center gap-2 flex-wrap">
+        <input
+          type="date"
+          value={filters.tanggal}
+          onChange={(e) => setFilters((f) => ({ ...f, tanggal: e.target.value }))}
+          className="neo-input px-2 py-1.5 text-sm font-medium"
+        />
+        <select
+          value={filters.shift_id ?? ''}
+          onChange={(e) => setFilters((f) => ({ ...f, shift_id: e.target.value || undefined }))}
+          className="neo-input px-2 py-1.5 text-sm font-medium"
+        >
+          <option value="">Semua Shift</option>
+          {shiftTypes.map((s) => (
+            <option key={s.id} value={s.id}>
+              {SHIFT_LABEL[s.nama] ?? s.nama}
+            </option>
           ))}
+        </select>
+        <select
+          value={filters.regu_id ?? ''}
+          onChange={(e) => setFilters((f) => ({ ...f, regu_id: e.target.value || undefined }))}
+          className="neo-input px-2 py-1.5 text-sm font-medium"
+        >
+          <option value="">Semua Regu</option>
+          {reguList.map((r) => (
+            <option key={r.id} value={r.id}>{r.nama}</option>
+          ))}
+        </select>
+        <button
+          onClick={applyFilter}
+          className="px-4 py-1.5 text-sm font-black border-2 border-neo-black bg-pln-yellow text-neo-black shadow-neo hover:-translate-x-0.5 hover:-translate-y-0.5 transition-transform"
+        >
+          Filter
+        </button>
+
+        {/* Summary chips */}
+        <div className="flex gap-1.5 ml-auto">
+          {(Object.entries(statusCount) as [StatusLaporan, number][]).map(([status, count]) => (
+            <div
+              key={status}
+              className="px-2 py-0.5 text-xs font-black border-2 border-neo-black"
+              style={{ backgroundColor: STATUS_COLOR[status].bg, color: STATUS_COLOR[status].text }}
+            >
+              {count} {STATUS_LABEL[status].split(' ')[0]}
+            </div>
+          ))}
+          <div className="px-2 py-0.5 text-xs font-black border-2 border-neo-black bg-neo-gray text-neo-black">
+            {initialLaporan.length} Total
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {filtered.length === 0 ? (
-          <div className="flex items-center justify-center py-20 text-gray-400 font-medium">
-            Tidak ada laporan pada tanggal ini
+      {/* Table */}
+      <div className="flex-1 overflow-y-auto">
+        {initialLaporan.length === 0 ? (
+          <div className="p-12 text-center text-sm text-gray-400 font-medium">
+            Tidak ada laporan pada filter ini
           </div>
         ) : (
-          <>
-            {/* Per Regu */}
-            <section>
-              <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
-                Rekap per Regu
-              </h2>
-              <ReguTable
-                reguRows={reguRows}
-                totalCounts={totalCounts}
-                grandTotal={filtered.length}
-              />
-            </section>
-
-            {/* Per Piket */}
-            {visiblePikets.length > 0 && (
-              <section>
-                <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
-                  Rekap per Piket
-                </h2>
-                <div className="space-y-4">
-                  {visiblePikets.map((piket) => {
-                    const piketLaporan = filtered.filter((l) => l.piket_id === piket.id)
-                    const piketReguRows = reguList
-                      .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
-                      .map((r) => {
-                        const rl = piketLaporan.filter((l) => l.regu_id === r.id)
-                        return { regu: r, counts: countStatus(rl), total: rl.length }
-                      })
-                      .filter((r) => r.total > 0)
-
-                    const shiftLabel = piket.shift_type
-                      ? formatShiftLabel(
-                          piket.shift_type.nama,
-                          piket.shift_type.jam_mulai,
-                          piket.shift_type.jam_selesai,
-                        )
-                      : piket.shift_type_id
-
-                    return (
-                      <div
-                        key={piket.id}
-                        className="border-2 border-neo-black shadow-neo overflow-hidden"
-                      >
-                        <div
-                          className="px-3 py-2 border-b-2 border-neo-black flex items-center justify-between"
-                          style={{ backgroundColor: '#003B8E' }}
-                        >
-                          <span className="font-black text-sm text-white">{shiftLabel}</span>
-                          <span className="text-xs text-blue-200 font-bold">
-                            {piketLaporan.length} laporan
-                          </span>
-                        </div>
-                        {piketReguRows.length === 0 ? (
-                          <div className="px-3 py-5 text-center text-sm text-gray-400">
-                            Tidak ada laporan
-                          </div>
-                        ) : (
-                          <ReguTable
-                            reguRows={piketReguRows}
-                            totalCounts={countStatus(piketLaporan)}
-                            grandTotal={piketLaporan.length}
-                            compact
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* Tanpa Piket */}
-            {tanpaPiket.length > 0 && filterPiket === 'semua' && (
-              <section>
-                <h2 className="font-black text-sm uppercase tracking-wide text-neo-black mb-2">
-                  Tanpa Piket
-                </h2>
-                <div className="border-2 border-neo-black shadow-neo overflow-hidden">
-                  <div className="px-3 py-2 border-b-2 border-neo-black flex items-center justify-between bg-neo-gray">
-                    <span className="font-black text-sm text-neo-black">Laporan tanpa piket</span>
-                    <span className="text-xs text-gray-500 font-bold">{tanpaPiket.length} laporan</span>
-                  </div>
-                  <ReguTable
-                    reguRows={reguList
-                      .filter((r) => filterRegu === 'semua' || r.id === filterRegu)
-                      .map((r) => {
-                        const rl = tanpaPiket.filter((l) => l.regu_id === r.id)
-                        return { regu: r, counts: countStatus(rl), total: rl.length }
-                      })
-                      .filter((r) => r.total > 0)}
-                    totalCounts={countStatus(tanpaPiket)}
-                    grandTotal={tanpaPiket.length}
-                    compact
-                  />
-                </div>
-              </section>
-            )}
-          </>
+          <table className="w-full text-sm border-collapse">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-neo-black text-white">
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide">No. Tiket</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide">Pelanggan</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden md:table-cell">Lokasi</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide">Regu</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide">Status</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden lg:table-cell">Keterangan</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden xl:table-cell">CC Callback</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden xl:table-cell">Status CC</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden xl:table-cell">Tgl CC</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden sm:table-cell">Lapor</th>
+                <th className="px-3 py-2 text-left font-bold text-xs uppercase tracking-wide hidden sm:table-cell">Update</th>
+              </tr>
+            </thead>
+            <tbody>
+              {initialLaporan.map((l) => (
+                <tr key={l.id} className="border-b border-neo-gray hover:bg-neo-gray/30 transition-colors">
+                  <td className="px-3 py-2 font-mono font-bold text-xs text-pln-blue">{l.nomor_tiket}</td>
+                  <td className="px-3 py-2 font-medium">{l.nama_pelanggan}</td>
+                  <td className="px-3 py-2 text-gray-600 hidden md:table-cell max-w-48 truncate">{l.lokasi}</td>
+                  <td className="px-3 py-2 font-medium">{l.regu?.nama ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    <span
+                      className="px-2 py-0.5 text-xs font-black border border-current whitespace-nowrap"
+                      style={{ backgroundColor: STATUS_COLOR[l.status].bg, color: STATUS_COLOR[l.status].text }}
+                    >
+                      {STATUS_LABEL[l.status]}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 hidden lg:table-cell max-w-48 truncate">
+                    {l.keterangan ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-neo-black font-medium hidden xl:table-cell whitespace-nowrap">
+                    {l.nama_cc_callback ?? '—'}
+                  </td>
+                  <td className="px-3 py-2 hidden xl:table-cell whitespace-nowrap">
+                    {l.status_callback ? (
+                      <span className={`px-2 py-0.5 font-bold text-[10px] border border-current uppercase ${
+                        l.status_callback === 'Nyala' ? 'text-[#1DB954] border-[#1DB954] bg-[#1DB954]/10' : 'text-[#F5A623] border-[#F5A623] bg-[#F5A623]/10'
+                      }`}>
+                        {l.status_callback}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 hidden xl:table-cell whitespace-nowrap">
+                    {l.tanggal_callback ? fmtWaktu(l.tanggal_callback) : '—'}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 hidden sm:table-cell whitespace-nowrap">{fmtWaktu(l.created_at)}</td>
+                  <td className="px-3 py-2 text-xs text-gray-500 hidden sm:table-cell whitespace-nowrap">{fmtWaktu(l.updated_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
-    </div>
-  )
-}
-
-/* ─── Sub-components ─── */
-
-interface ReguRow {
-  regu: ReguItem
-  counts: StatusCounts
-  total: number
-}
-
-function ReguTable({
-  reguRows,
-  totalCounts,
-  grandTotal,
-  compact = false,
-}: {
-  reguRows: ReguRow[]
-  totalCounts: StatusCounts
-  grandTotal: number
-  compact?: boolean
-}) {
-  const px = compact ? 'px-3 py-1.5' : 'px-3 py-2'
-  const showFooter = reguRows.length > 1
-
-  return (
-    <div className={compact ? '' : 'border-2 border-neo-black shadow-neo overflow-x-auto'}>
-      <table className="w-full text-sm border-collapse">
-        <thead className={compact ? 'bg-neo-gray' : 'bg-neo-black text-white'}>
-          <tr>
-            <th className={`text-left ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}>
-              Regu
-            </th>
-            {STATUS_COLS.map((s) => (
-              <th
-                key={s.key}
-                className={`text-center ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}
-              >
-                {s.label}
-              </th>
-            ))}
-            <th
-              className={`text-center ${px} font-bold text-xs ${compact ? 'text-neo-black' : ''}`}
-            >
-              Total
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-neo-gray">
-          {reguRows.map(({ regu, counts, total }) => (
-            <tr key={regu.id} className="hover:bg-neo-gray/40 transition-colors">
-              <td className={`${px} font-bold`}>{regu.nama}</td>
-              {STATUS_COLS.map((s) => (
-                <td key={s.key} className={`text-center ${px}`}>
-                  {counts[s.key] > 0 ? (
-                    <span
-                      className="inline-flex items-center justify-center w-7 h-7 font-black text-xs border border-neo-black"
-                      style={{
-                        backgroundColor: STATUS_COLOR[s.key].bg,
-                        color: STATUS_COLOR[s.key].text,
-                      }}
-                    >
-                      {counts[s.key]}
-                    </span>
-                  ) : (
-                    <span className="text-gray-300 text-xs">—</span>
-                  )}
-                </td>
-              ))}
-              <td className={`text-center ${px} font-black`}>{total > 0 ? total : <span className="text-gray-300">—</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-        {showFooter && (
-          <tfoot className="border-t-2 border-neo-black bg-neo-gray">
-            <tr>
-              <td className={`${px} font-black text-xs uppercase`}>Total</td>
-              {STATUS_COLS.map((s) => (
-                <td key={s.key} className={`text-center ${px} font-black text-xs`}>
-                  {totalCounts[s.key] > 0 ? totalCounts[s.key] : '—'}
-                </td>
-              ))}
-              <td className={`text-center ${px} font-black text-xs`}>{grandTotal}</td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
-    </div>
-  )
-}
-
-function SummaryCard({
-  label,
-  value,
-  bg,
-  fg,
-}: {
-  label: string
-  value: number
-  bg: string
-  fg: string
-}) {
-  return (
-    <div
-      className="border-2 border-neo-black px-4 py-2 flex flex-col items-center min-w-16 shrink-0"
-      style={{ backgroundColor: bg }}
-    >
-      <span className="text-2xl font-black leading-none" style={{ color: fg }}>
-        {value}
-      </span>
-      <span className="text-xs font-bold mt-0.5" style={{ color: fg }}>
-        {label}
-      </span>
     </div>
   )
 }

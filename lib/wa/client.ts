@@ -1,5 +1,6 @@
 import { Client, LocalAuth } from 'whatsapp-web.js'
 import path from 'path'
+import fs from 'fs'
 
 // Global singleton — keyed by user_id (bukan ulp_id)
 const g = global as typeof global & {
@@ -51,12 +52,28 @@ export function getOrCreateWaClient(userId: string): Client {
   return client
 }
 
-export function destroyWaClient(userId: string): void {
+export async function destroyWaClient(userId: string): Promise<void> {
   const client = clients.get(userId)
   if (client) {
-    client.destroy().catch(() => null)
+    try {
+      await client.logout().catch(() => null)
+    } catch (e) {}
+    try {
+      await client.destroy().catch(() => null)
+    } catch (e) {}
     clients.delete(userId)
     registeredHandlers.delete(userId)
+  }
+
+  // Hapus folder sesi secara fisik agar tidak nyangkut saat init berikutnya
+  const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
+  const targetDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir, `session-user-${userId}`)
+  try {
+    if (fs.existsSync(targetDir)) {
+      fs.rmSync(targetDir, { recursive: true, force: true })
+    }
+  } catch (e) {
+    console.error('[WA Cleanup] Error checking/deleting session folder:', e)
   }
 }
 
