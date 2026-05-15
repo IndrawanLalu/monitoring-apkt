@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLaporanSchema } from '@/lib/validations/laporan'
 import { UPDATED_BY } from '@/constants'
+import { kirimLaporanBaru } from '@/lib/wa/send'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -69,7 +70,8 @@ export async function POST(req: NextRequest) {
     updated_by: UPDATED_BY.CC,
   })
 
-  // Tidak ada kirimLaporanBaru — CC Callback buka WA manual ke pelanggan
+  // Trigger WA notification to group
+  kirimLaporanBaru(laporan.id).catch((e) => console.error("Error trigger WA Bot di callback:", e))
 
   return NextResponse.json({ data: laporan, error: null }, { status: 201 })
 }

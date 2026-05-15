@@ -72,7 +72,7 @@ export default async function DashboardPage() {
     // Piket tanpa petugas = belum ada piket aktif
     const piket = petugasList.length > 0 ? activePiket : null
     return { ulp, piket, reguList, petugasList: piket ? petugasList : [], laporanList }
-  })
+  }).filter(data => data.piket !== null)
 
   return (
     <DashboardClient

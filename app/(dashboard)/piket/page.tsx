@@ -9,25 +9,25 @@ export default async function PiketPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  const ulpId = profile.activeUlp.id
+  const ulpIds = profile.ulps.map(u => u.id)
   const supabase = await createClient()
 
   const [{ data: piketList }, { data: shiftTypes }, { data: reguList }, { data: petugasMaster }] = await Promise.all([
     supabase
       .from('piket')
       .select('id, tanggal, ulp_id, shift_type_id, nama_cc, created_at, shift_type(id, nama, jam_mulai, jam_selesai), piket_petugas(regu_id, petugas:petugas_apkt(id, nama))')
-      .eq('ulp_id', ulpId)
+      .in('ulp_id', ulpIds)
       .order('tanggal', { ascending: false })
       .order('created_at', { ascending: false })
-      .limit(30),
+      .limit(30 * ulpIds.length), // Tingkatkan limit karena multiple ULP
     supabase.from('shift_type').select('id, nama, jam_mulai, jam_selesai'),
-    supabase.from('regu').select('id, nama').eq('ulp_id', ulpId).order('nama'),
-    supabase.from('petugas_apkt').select('id, nama, nomor_hp').eq('ulp_id', ulpId).order('nama'),
+    supabase.from('regu').select('id, nama, ulp_id').in('ulp_id', ulpIds).order('nama'),
+    supabase.from('petugas_apkt').select('id, nama, nomor_hp, ulp_id').in('ulp_id', ulpIds).order('nama'),
   ])
 
   return (
     <PiketClient
-      ulpId={ulpId}
+      ulps={profile.ulps}
       role={profile.role}
       piketList={(piketList ?? []) as never}
       shiftTypes={(shiftTypes ?? []) as never}
