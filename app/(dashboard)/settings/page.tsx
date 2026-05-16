@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SettingsClient } from './settings-client'
 import { getProfile } from '@/lib/auth'
@@ -24,44 +23,54 @@ export default async function SettingsPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
 
-  const ulpId = profile.activeUlp.id
-  const supabase = await createClient()
   const admin = createAdminClient()
+  const ulpIds = profile.ulps.map((u) => u.id)
 
-  const [{ data: reguList }, { data: petugasList }, { data: waSession }, { data: ulpData }] = await Promise.all([
-    supabase
+  const [{ data: reguList }, { data: petugasList }, { data: waSession }, { data: ulpsRaw }] = await Promise.all([
+    admin
       .from('regu')
       .select('id, ulp_id, nama, nomor_hp, created_at')
-      .eq('ulp_id', ulpId)
+      .in('ulp_id', ulpIds)
       .order('nama'),
-    supabase
+    admin
       .from('petugas_apkt')
       .select('id, ulp_id, regu_id, nama, nomor_hp, created_at')
-      .eq('ulp_id', ulpId)
+      .in('ulp_id', ulpIds)
       .order('nama'),
-    supabase
+    admin
       .from('wa_session')
       .select('id, user_id, status, session_data, updated_at')
       .eq('user_id', profile.id)
       .maybeSingle(),
     admin
       .from('ulp')
-      .select('wa_template_callback')
-      .eq('id', ulpId)
-      .single(),
+      .select('id, wa_template_callback, wa_grup_id')
+      .in('id', ulpIds),
   ])
 
-  const templateCallback =
-    (ulpData as { wa_template_callback?: string | null } | null)?.wa_template_callback ?? TEMPLATE_CALLBACK_DEFAULT
+  const ulpSettingsMap = new Map(
+    (ulpsRaw ?? []).map((u) => [
+      u.id as string,
+      {
+        templateCallback: (u.wa_template_callback as string | null) ?? TEMPLATE_CALLBACK_DEFAULT,
+        waGrupId: (u.wa_grup_id as string | null) ?? '',
+      },
+    ])
+  )
+
+  const ulpsData = profile.ulps.map((ulp) => ({
+    ulp,
+    reguList: (reguList ?? []).filter((r) => r.ulp_id === ulp.id),
+    petugasList: (petugasList ?? []).filter((p) => p.ulp_id === ulp.id),
+    templateCallback: ulpSettingsMap.get(ulp.id)?.templateCallback ?? TEMPLATE_CALLBACK_DEFAULT,
+    waGrupId: ulpSettingsMap.get(ulp.id)?.waGrupId ?? '',
+  }))
 
   return (
     <SettingsClient
-      key={ulpId}
-      profile={{ ulp_id: ulpId, role: profile.role, ulp: profile.activeUlp, userId: profile.id, ulps: profile.ulps } as never}
-      reguList={reguList ?? []}
-      petugasList={petugasList ?? []}
+      ulpsData={ulpsData}
+      profile={{ role: profile.role, userId: profile.id, ulps: profile.ulps }}
       waSession={waSession}
-      templateCallback={templateCallback}
     />
   )
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { Regu, Petugas, WaSessionStatus } from "@/types";
 import { WaTab } from "./wa-tab";
 import { ReguTab } from "./regu-tab";
@@ -16,42 +16,52 @@ interface WaSession {
   updated_at: string;
 }
 
+interface UlpData {
+  ulp: { id: string; nama: string; kode: string };
+  reguList: Regu[];
+  petugasList: Petugas[];
+  templateCallback: string;
+  waGrupId: string;
+}
+
 interface Props {
+  ulpsData: UlpData[];
   profile: {
-    ulp_id: string;
     role: string;
-    ulp: { id: string; nama: string; kode: string; wa_grup_id: string | null };
     userId?: string;
     ulps?: { id: string; nama: string; kode: string }[];
   };
-  reguList: Regu[];
-  petugasList: Petugas[];
   waSession: WaSession | null;
-  templateCallback: string;
 }
 
 type Tab = "wa" | "regu" | "petugas" | "callback" | "users";
 
-export function SettingsClient({
-  profile,
-  reguList: initialRegu,
-  petugasList: initialPetugas,
-  waSession: initialWa,
-  templateCallback,
-}: Props) {
-  const [tab, setTab]             = useState<Tab>("wa");
+export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Props) {
+  const [tab, setTab] = useState<Tab>("wa");
   const [waSession, setWaSession] = useState<WaSession | null>(initialWa);
-  const [reguList, setReguList]   = useState<Regu[]>(initialRegu);
-  const [petugasList, setPetugasList] = useState<Petugas[]>(initialPetugas);
-  const [waGrupId, setWaGrupId]   = useState(profile.ulp.wa_grup_id ?? "");
-  const [toast, setToast]         = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [selectedUlpIdx, setSelectedUlpIdx] = useState(0);
+  const [toast, setToast] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
-  useEffect(() => {
-    setReguList(initialRegu);
-    setPetugasList(initialPetugas);
-    setWaSession(initialWa);
-    setWaGrupId(profile.ulp.wa_grup_id ?? "");
-  }, [initialRegu, initialPetugas, initialWa, profile.ulp.wa_grup_id]);
+  const [ulpStates, setUlpStates] = useState(() =>
+    ulpsData.map((d) => ({
+      reguList: d.reguList,
+      petugasList: d.petugasList,
+      waGrupId: d.waGrupId,
+    }))
+  );
+
+  const current = ulpsData[selectedUlpIdx];
+  const currentState = ulpStates[selectedUlpIdx];
+
+  function setCurrentReguList(reguList: Regu[]) {
+    setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, reguList } : s));
+  }
+  function setCurrentPetugasList(petugasList: Petugas[]) {
+    setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, petugasList } : s));
+  }
+  function setCurrentWaGrupId(waGrupId: string) {
+    setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, waGrupId } : s));
+  }
 
   const showToast = useCallback((text: string, type: "success" | "error" | "info" = "info") => {
     setToast({ text, type });
@@ -61,15 +71,50 @@ export function SettingsClient({
   const toastColor = toast?.type === "success" ? "#1DB954" : toast?.type === "error" ? "#E4002B" : "var(--accent)";
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: "wa",       label: "📱 WhatsApp"          },
-    { key: "regu",     label: "👷 Regu"               },
-    { key: "petugas",  label: "👤 Petugas"            },
-    { key: "callback", label: "📞 Template Callback"  },
+    { key: "wa",       label: "📱 WhatsApp"         },
+    { key: "regu",     label: "👷 Regu"              },
+    { key: "petugas",  label: "👤 Petugas"           },
+    { key: "callback", label: "📞 Template Callback" },
     ...(profile.role === "admin" ? [{ key: "users" as Tab, label: "👥 Manajemen User CC" }] : []),
   ];
 
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* ULP Selector — hanya tampil jika lebih dari 1 ULP */}
+      {ulpsData.length > 1 && (
+        <div style={{
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "10px 20px",
+          borderBottom: "1px solid var(--border)",
+          backgroundColor: "var(--bg-surface)",
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>ULP:</span>
+          {ulpsData.map((d, idx) => (
+            <button
+              key={d.ulp.id}
+              onClick={() => setSelectedUlpIdx(idx)}
+              style={{
+                padding: "4px 14px",
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: idx === selectedUlpIdx ? 700 : 500,
+                border: "2px solid",
+                borderColor: idx === selectedUlpIdx ? "var(--accent)" : "var(--border)",
+                backgroundColor: idx === selectedUlpIdx ? "var(--accent)" : "transparent",
+                color: idx === selectedUlpIdx ? "#fff" : "var(--text-secondary)",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {d.ulp.nama}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Tab Bar */}
       <div style={{ flexShrink: 0, display: "flex", borderBottom: "1px solid var(--border)", backgroundColor: "var(--bg-surface)", overflowX: "auto" }}>
         {tabs.map(({ key, label }) => (
@@ -99,23 +144,12 @@ export function SettingsClient({
 
       {/* Content Area */}
       <div style={{ flex: 1, overflowY: "auto", padding: 20, position: "relative" }}>
-        {/* Toast Banner */}
         {toast && (
           <div style={{
-            position: "sticky",
-            top: 0,
-            zIndex: 50,
-            marginBottom: 16,
-            padding: "10px 16px",
-            borderRadius: 10,
-            backgroundColor: toastColor,
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 600,
-            boxShadow: "var(--shadow-md)",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
+            position: "sticky", top: 0, zIndex: 50, marginBottom: 16,
+            padding: "10px 16px", borderRadius: 10, backgroundColor: toastColor,
+            color: "#fff", fontSize: 13, fontWeight: 600,
+            boxShadow: "var(--shadow-md)", display: "flex", alignItems: "center", gap: 8,
           }}>
             {toast.type === "success" ? "✅" : toast.type === "error" ? "⚠️" : "ℹ️"}
             {toast.text}
@@ -125,27 +159,27 @@ export function SettingsClient({
         {tab === "wa" && (
           <WaTab
             userId={profile.userId}
-            ulpId={profile.ulp_id}
-            waGrupId={waGrupId}
-            onGrupIdChange={setWaGrupId}
+            ulpId={current.ulp.id}
+            waGrupId={currentState.waGrupId}
+            onGrupIdChange={setCurrentWaGrupId}
             waSession={waSession}
-            onSessionChange={setWaSession as any}
+            onSessionChange={setWaSession as never}
             onToast={showToast}
           />
         )}
         {tab === "regu" && (
-          <ReguTab ulpId={profile.ulp_id} reguList={reguList} setReguList={setReguList} />
+          <ReguTab ulpId={current.ulp.id} reguList={currentState.reguList} setReguList={setCurrentReguList} />
         )}
         {tab === "petugas" && (
           <PetugasTab
-            ulpId={profile.ulp_id}
-            reguList={reguList}
-            petugasList={petugasList}
-            setPetugasList={setPetugasList}
+            ulpId={current.ulp.id}
+            reguList={currentState.reguList}
+            petugasList={currentState.petugasList}
+            setPetugasList={setCurrentPetugasList}
           />
         )}
         {tab === "callback" && (
-          <CallbackTemplateTab ulpId={profile.ulp_id} initialTemplate={templateCallback} />
+          <CallbackTemplateTab key={current.ulp.id} ulpId={current.ulp.id} initialTemplate={current.templateCallback} />
         )}
         {tab === "users" && (
           <UsersTab ulps={profile.ulps ?? []} onToast={showToast} />
