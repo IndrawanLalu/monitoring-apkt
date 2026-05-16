@@ -264,6 +264,11 @@ body {
   cursor: not-allowed;
 }
 
+.input-error {
+  border-color: #E4002B !important;
+  box-shadow: 0 0 0 3px rgba(228, 0, 43, 0.15) !important;
+}
+
 /* Badge / Status */
 .badge {
   display: inline-flex;

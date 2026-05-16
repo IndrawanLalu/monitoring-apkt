@@ -128,30 +128,43 @@ export function LaporanForm({ reguList, defaultReguId, onSubmit, onCancel }: Lap
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {/* Paste dari APKT */}
-      <div className="border-2 border-neo-black bg-pln-yellow/10">
+      <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', backgroundColor: 'var(--accent-subtle)' }}>
         <button
           type="button"
-          className="w-full flex items-center justify-between px-3 py-2 font-bold text-sm text-neo-black"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '9px 12px',
+            fontWeight: 600,
+            fontSize: 13,
+            color: 'var(--text-primary)',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+          }}
           onClick={() => setShowPaste((v) => !v)}
         >
           <span>📋 Paste dari APKT</span>
-          <span className="text-xs opacity-60">{showPaste ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 11, opacity: 0.6 }}>{showPaste ? '▲' : '▼'}</span>
         </button>
         {showPaste && (
-          <div className="px-3 pb-3 flex flex-col gap-2">
+          <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <textarea
               rows={3}
               placeholder="Copy baris dari tabel APKT, lalu paste di sini..."
               value={pasteText}
               onChange={(e) => handlePaste(e.target.value)}
-              className="neo-input w-full px-3 py-2 text-xs font-mono resize-none"
+              className="input"
+              style={{ fontFamily: 'monospace', fontSize: 11, resize: 'none' }}
             />
             {values.created_at && (
-              <p className="text-xs text-pln-blue font-medium">
+              <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500, margin: 0 }}>
                 ⏱ Waktu lapor APKT: {new Date(values.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} (durasi dihitung dari APKT)
               </p>
             )}
-            <p className="text-xs text-gray-400">Form akan terisi otomatis dari data yang di-paste.</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Form akan terisi otomatis dari data yang di-paste.</p>
           </div>
         )}
       </div>
@@ -239,8 +252,8 @@ export function LaporanForm({ reguList, defaultReguId, onSubmit, onCancel }: Lap
       </div>
 
       {serverError && (
-        <div className="neo-border p-3 border-pln-red!" style={{ backgroundColor: '#FFF5F5' }}>
-          <p className="text-sm font-medium text-pln-red">{serverError}</p>
+        <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: 'rgba(228,0,43,0.1)', border: '1px solid rgba(228,0,43,0.25)' }}>
+          <p style={{ fontSize: 13, color: '#E4002B', margin: 0, fontWeight: 500 }}>⚠ {serverError}</p>
         </div>
       )}
 

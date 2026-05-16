@@ -3,6 +3,29 @@
 import { forwardRef } from 'react'
 import { cn } from '@/lib/utils/cn'
 
+/* ---- shared label style ---- */
+const labelStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  marginBottom: 4,
+  display: 'block',
+}
+
+const hintStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--text-muted)',
+  marginTop: 3,
+}
+
+const errorStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#E4002B',
+  marginTop: 3,
+  fontWeight: 500,
+}
+
+/* ---- Input ---- */
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string
   error?: string
@@ -10,35 +33,31 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, error, hint, id, style, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
-
     return (
-      <div className="flex flex-col gap-1">
-        {label && (
-          <label htmlFor={inputId} className="text-sm font-bold text-neo-black">
-            {label}
-          </label>
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {label && <label htmlFor={inputId} style={labelStyle}>{label}</label>}
         <input
           ref={ref}
           id={inputId}
-          className={cn(
-            'neo-input w-full px-3 py-2 text-sm font-medium text-neo-black placeholder:text-gray-400',
-            error && 'border-pln-red! shadow-[2px_2px_0px_#E4002B]!',
-            className,
-          )}
+          className={cn('input', error && 'input-error', className)}
+          style={{
+            borderColor: error ? '#E4002B' : undefined,
+            boxShadow: error ? '0 0 0 3px rgba(228,0,43,0.15)' : undefined,
+            ...style,
+          }}
           {...props}
         />
-        {error && <p className="text-xs font-medium text-pln-red">{error}</p>}
-        {hint && !error && <p className="text-xs text-gray-500">{hint}</p>}
+        {error && <p style={errorStyle}>{error}</p>}
+        {hint && !error && <p style={hintStyle}>{hint}</p>}
       </div>
     )
   },
 )
-
 Input.displayName = 'Input'
 
+/* ---- Textarea ---- */
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
   error?: string
@@ -46,35 +65,33 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, error, hint, id, ...props }, ref) => {
+  ({ className, label, error, hint, id, style, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
-
     return (
-      <div className="flex flex-col gap-1">
-        {label && (
-          <label htmlFor={inputId} className="text-sm font-bold text-neo-black">
-            {label}
-          </label>
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {label && <label htmlFor={inputId} style={labelStyle}>{label}</label>}
         <textarea
           ref={ref}
           id={inputId}
-          className={cn(
-            'neo-input w-full px-3 py-2 text-sm font-medium text-neo-black placeholder:text-gray-400 resize-none',
-            error && 'border-pln-red! shadow-[2px_2px_0px_#E4002B]!',
-            className,
-          )}
+          className={cn('input', error && 'input-error', className)}
+          style={{
+            resize: 'vertical',
+            minHeight: 80,
+            borderColor: error ? '#E4002B' : undefined,
+            boxShadow: error ? '0 0 0 3px rgba(228,0,43,0.15)' : undefined,
+            ...style,
+          }}
           {...props}
         />
-        {error && <p className="text-xs font-medium text-pln-red">{error}</p>}
-        {hint && !error && <p className="text-xs text-gray-500">{hint}</p>}
+        {error && <p style={errorStyle}>{error}</p>}
+        {hint && !error && <p style={hintStyle}>{hint}</p>}
       </div>
     )
   },
 )
-
 Textarea.displayName = 'Textarea'
 
+/* ---- Select ---- */
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
@@ -82,35 +99,31 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, hint, id, children, ...props }, ref) => {
+  ({ className, label, error, hint, id, children, style, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
-
     return (
-      <div className="flex flex-col gap-1">
-        {label && (
-          <label htmlFor={inputId} className="text-sm font-bold text-neo-black">
-            {label}
-          </label>
-        )}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {label && <label htmlFor={inputId} style={labelStyle}>{label}</label>}
         <select
           ref={ref}
           id={inputId}
-          className={cn(
-            'neo-input w-full px-3 py-2 text-sm font-medium text-neo-black cursor-pointer',
-            error && 'border-pln-red! shadow-[2px_2px_0px_#E4002B]!',
-            className,
-          )}
+          className={cn('input', error && 'input-error', className)}
+          style={{
+            cursor: 'pointer',
+            borderColor: error ? '#E4002B' : undefined,
+            boxShadow: error ? '0 0 0 3px rgba(228,0,43,0.15)' : undefined,
+            ...style,
+          }}
           {...props}
         >
           {children}
         </select>
-        {error && <p className="text-xs font-medium text-pln-red">{error}</p>}
-        {hint && !error && <p className="text-xs text-gray-500">{hint}</p>}
+        {error && <p style={errorStyle}>{error}</p>}
+        {hint && !error && <p style={hintStyle}>{hint}</p>}
       </div>
     )
   },
 )
-
 Select.displayName = 'Select'
 
 export { Input, Textarea, Select }

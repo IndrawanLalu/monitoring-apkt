@@ -26,62 +26,122 @@ export function ShiftHeader({ piket, totalLapor, totalDitangani, totalNyalaSemen
   const jamSelesai = SHIFT_JAM[shift.nama as ShiftType].selesai
 
   return (
-    <div className="neo-border-thick border-b-0" style={{ backgroundColor: '#003B8E' }}>
+    <div
+      style={{
+        background: 'linear-gradient(135deg, #003B8E 0%, #005BB5 50%, #0070C0 100%)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        flexShrink: 0,
+      }}
+    >
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b-2 border-white/20">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">⚡</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 20px',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 22 }}>⚡</span>
           <div>
-            <h1 className="text-white font-black text-lg leading-none">MONITORING APKT</h1>
-            <p className="text-blue-200 text-xs font-medium">{piket.ulp.nama}</p>
+            <h1 style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: 0, lineHeight: 1, letterSpacing: '-0.01em' }}>
+              MONITORING APKT
+            </h1>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, margin: '3px 0 0', fontWeight: 400 }}>
+              {piket.ulp.nama}
+            </p>
           </div>
         </div>
 
-        <div className="text-right">
-          <div className="text-white font-black text-2xl font-mono leading-none" suppressHydrationWarning>
+        <div style={{ textAlign: 'right' }}>
+          <div
+            style={{ color: '#fff', fontWeight: 800, fontSize: 24, fontFamily: 'monospace', lineHeight: 1 }}
+            suppressHydrationWarning
+          >
             {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <div className="text-blue-200 text-xs font-medium">{formatTanggal(piket.tanggal)}</div>
+          <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, marginTop: 3 }}>
+            {formatTanggal(piket.tanggal)}
+          </div>
         </div>
       </div>
 
       {/* Shift info + stats */}
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 20px',
+          flexWrap: 'wrap',
+          gap: 8,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span
-            className="px-3 py-1 font-black text-sm border-2 border-white"
-            style={{ backgroundColor: '#FFD200', color: '#1A1A1A' }}
+            style={{
+              padding: '3px 12px',
+              fontWeight: 700,
+              fontSize: 12,
+              borderRadius: 6,
+              backgroundColor: '#FFD200',
+              color: '#0F172A',
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+            }}
           >
-            {SHIFT_LABEL[shift.nama as ShiftType].toUpperCase()}
+            {SHIFT_LABEL[shift.nama as ShiftType]}
           </span>
-          <span className="text-blue-100 text-sm font-medium">{jamMulai} – {jamSelesai}</span>
+          <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: 500 }}>
+            {jamMulai} – {jamSelesai}
+          </span>
           {piket.nama_cc && (
-            <span className="text-blue-100 text-xs font-medium border border-white/30 px-2 py-0.5">
+            <span
+              style={{
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 11,
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 5,
+                padding: '2px 8px',
+              }}
+            >
               👤 CC: {piket.nama_cc}
             </span>
           )}
         </div>
 
         {/* Quick stats */}
-        <div className="flex items-center gap-1">
-          <StatChip label="Lapor" value={totalLapor} color="#E4002B" textColor="#fff" />
-          <StatChip label="Proses" value={totalDitangani} color="#0070C0" textColor="#fff" />
-          <StatChip label="Hold" value={totalNyalaSementara} color="#FFD200" textColor="#1A1A1A" />
-          <StatChip label="Selesai" value={totalSelesai} color="#1DB954" textColor="#fff" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <StatChip label="Lapor"  value={totalLapor}         color="#E4002B" />
+          <StatChip label="Proses" value={totalDitangani}     color="#3B9EFF" />
+          <StatChip label="Hold"   value={totalNyalaSementara} color="#F5A623" />
+          <StatChip label="Selesai" value={totalSelesai}      color="#1DB954" />
         </div>
       </div>
     </div>
   )
 }
 
-function StatChip({ label, value, color, textColor }: { label: string; value: number; color: string; textColor: string }) {
+function StatChip({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div
-      className="flex items-center gap-1 px-2 py-1 border border-white/30 text-xs font-bold"
-      style={{ backgroundColor: color, color: textColor }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 9px',
+        borderRadius: 7,
+        fontSize: 12,
+        fontWeight: 700,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        color: '#fff',
+      }}
     >
-      <span>{value}</span>
-      <span className="opacity-80">{label}</span>
+      <span style={{ color }}>{value}</span>
+      <span style={{ opacity: 0.75, fontSize: 10 }}>{label}</span>
     </div>
   )
 }

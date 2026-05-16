@@ -42,30 +42,82 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neo-white p-4">
-      {/* Background pattern */}
-      <div
-        className="absolute inset-0 opacity-5"
-        style={{
-          backgroundImage: 'repeating-linear-gradient(0deg, #1A1A1A 0px, #1A1A1A 1px, transparent 1px, transparent 40px), repeating-linear-gradient(90deg, #1A1A1A 0px, #1A1A1A 1px, transparent 1px, transparent 40px)',
-        }}
-      />
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'var(--bg-base)',
+        padding: 16,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background gradient blobs */}
+      <div style={{
+        position: 'absolute',
+        top: '-20%',
+        left: '-10%',
+        width: 500,
+        height: 500,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0,112,192,0.15) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '-20%',
+        right: '-10%',
+        width: 400,
+        height: 400,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0,59,142,0.12) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
 
-      <div className="relative w-full max-w-sm">
-        {/* Logo / Header */}
-        <div className="neo-card mb-6 p-6 text-center" style={{ backgroundColor: '#003B8E' }}>
-          <div className="text-4xl mb-2">⚡</div>
-          <h1 className="text-2xl font-black text-white tracking-tight">MONITORING APKT</h1>
-          <p className="text-sm text-blue-200 font-medium mt-1">Sistem Monitoring Laporan PLN</p>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 380 }}>
+        {/* Header Card */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #003B8E 0%, #0070C0 100%)',
+            borderRadius: '16px 16px 0 0',
+            padding: '28px 32px 24px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 8, lineHeight: 1 }}>⚡</div>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+            MONITORING APKT
+          </h1>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: '6px 0 0', fontWeight: 400 }}>
+            Sistem Monitoring Laporan PLN
+          </p>
         </div>
 
-        {/* Login Form */}
-        <div className="neo-card p-6">
-          <h2 className="text-lg font-black text-neo-black mb-6 uppercase tracking-wide">
+        {/* Form Card */}
+        <div
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderRadius: '0 0 16px 16px',
+            border: '1px solid var(--border)',
+            borderTop: 'none',
+            padding: '28px 32px 24px',
+            boxShadow: 'var(--shadow-xl)',
+          }}
+        >
+          <h2 style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: 'var(--text-secondary)',
+            margin: '0 0 20px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}>
             Masuk ke Sistem
           </h2>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Input
               label="Email"
               type="email"
@@ -87,8 +139,15 @@ export default function LoginPage() {
             />
 
             {error && (
-              <div className="neo-border p-3 bg-red-50 border-pln-red!">
-                <p className="text-sm font-medium text-pln-red">{error}</p>
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 8,
+                backgroundColor: 'rgba(228,0,43,0.1)',
+                border: '1px solid rgba(228,0,43,0.25)',
+              }}>
+                <p style={{ fontSize: 13, color: '#E4002B', margin: 0, fontWeight: 500 }}>
+                  ⚠ {error}
+                </p>
               </div>
             )}
 
@@ -97,14 +156,14 @@ export default function LoginPage() {
               variant="primary"
               size="lg"
               loading={loading}
-              className="w-full mt-2"
+              style={{ width: '100%', marginTop: 6 }}
             >
               {loading ? 'Masuk...' : 'Masuk'}
             </Button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-4 font-medium">
+        <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 16 }}>
           Monitoring APKT v1.0 — Hanya untuk pengguna terotorisasi
         </p>
       </div>

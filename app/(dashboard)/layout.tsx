@@ -35,10 +35,12 @@ export default async function DashboardLayout({
   })
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-base)' }}>
       <PiketGuard shifts={activeShifts} />
       <Navbar profile={profile} />
-      <main className="flex-1 min-h-0 flex flex-col overflow-hidden">{children}</main>
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {children}
+      </main>
     </div>
   )
 }

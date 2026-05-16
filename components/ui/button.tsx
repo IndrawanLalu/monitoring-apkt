@@ -1,7 +1,6 @@
 'use client'
 
 import { forwardRef } from 'react'
-import { cn } from '@/lib/utils/cn'
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'yellow'
 type Size = 'sm' | 'md' | 'lg'
@@ -12,37 +11,77 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
-const VARIANT_CLASS: Record<Variant, string> = {
-  primary: 'bg-pln-blue text-white hover:bg-pln-blue-mid',
-  secondary: 'bg-neo-white text-neo-black hover:bg-neo-gray',
-  danger: 'bg-pln-red text-white hover:opacity-90',
-  ghost: 'bg-transparent text-neo-black border-transparent! shadow-none! hover:bg-neo-gray',
-  yellow: 'bg-pln-yellow text-neo-black hover:opacity-90',
+const VARIANT_STYLE: Record<Variant, React.CSSProperties> = {
+  primary:   { backgroundColor: 'var(--accent)', color: '#fff' },
+  secondary: { backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)', border: '1px solid var(--border)' },
+  danger:    { backgroundColor: '#E4002B', color: '#fff' },
+  ghost:     { backgroundColor: 'transparent', color: 'var(--text-secondary)', border: '1px solid transparent', boxShadow: 'none' },
+  yellow:    { backgroundColor: '#FFD200', color: '#0F172A' },
 }
 
-const SIZE_CLASS: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-base',
-  lg: 'px-6 py-3 text-lg',
+const VARIANT_HOVER: Record<Variant, React.CSSProperties> = {
+  primary:   { backgroundColor: 'var(--accent-hover)' },
+  secondary: { backgroundColor: 'var(--bg-surface-3)', borderColor: 'var(--border-strong)' },
+  danger:    { backgroundColor: '#C50025' },
+  ghost:     { backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' },
+  yellow:    { opacity: 0.9 },
+}
+
+const SIZE_STYLE: Record<Size, React.CSSProperties> = {
+  sm: { padding: '5px 10px', fontSize: 12, borderRadius: 6 },
+  md: { padding: '8px 16px', fontSize: 14, borderRadius: 8 },
+  lg: { padding: '11px 22px', fontSize: 15, borderRadius: 8 },
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', loading = false, children, disabled, ...props }, ref) => {
+  ({ style, variant = 'primary', size = 'md', loading = false, children, disabled, onMouseEnter, onMouseLeave, ...props }, ref) => {
+    const baseStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      fontWeight: 600,
+      cursor: disabled || loading ? 'not-allowed' : 'pointer',
+      opacity: disabled || loading ? 0.5 : 1,
+      transition: 'all 0.2s ease',
+      border: 'none',
+      outline: 'none',
+      whiteSpace: 'nowrap',
+      fontFamily: 'inherit',
+      ...VARIANT_STYLE[variant],
+      ...SIZE_STYLE[size],
+      ...style,
+    }
+
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={cn(
-          'neo-button inline-flex items-center justify-center gap-2 font-bold transition-all',
-          'disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-[2px_2px_0px_#1A1A1A]',
-          VARIANT_CLASS[variant],
-          SIZE_CLASS[size],
-          className,
-        )}
+        style={baseStyle}
+        onMouseEnter={(e) => {
+          if (!disabled && !loading) {
+            Object.assign(e.currentTarget.style, VARIANT_HOVER[variant], { transform: 'translateY(-1px)' })
+          }
+          onMouseEnter?.(e)
+        }}
+        onMouseLeave={(e) => {
+          if (!disabled && !loading) {
+            Object.assign(e.currentTarget.style, VARIANT_STYLE[variant], SIZE_STYLE[size], { transform: '' })
+          }
+          onMouseLeave?.(e)
+        }}
         {...props}
       >
         {loading && (
-          <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <span style={{
+            display: 'inline-block',
+            width: 14,
+            height: 14,
+            border: '2px solid currentColor',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }} />
         )}
         {children}
       </button>

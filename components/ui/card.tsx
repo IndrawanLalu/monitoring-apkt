@@ -3,14 +3,14 @@ import { cn } from '@/lib/utils/cn'
 interface CardProps {
   children: React.ReactNode
   className?: string
-  color?: string
+  style?: React.CSSProperties
 }
 
-export function Card({ children, className, color }: CardProps) {
+export function Card({ children, className, style }: CardProps) {
   return (
     <div
-      className={cn('neo-card p-4', className)}
-      style={color ? { backgroundColor: color } : undefined}
+      className={cn('card', className)}
+      style={style}
     >
       {children}
     </div>
@@ -20,20 +20,34 @@ export function Card({ children, className, color }: CardProps) {
 interface CardHeaderProps {
   children: React.ReactNode
   className?: string
-  color?: string
+  style?: React.CSSProperties
 }
 
-export function CardHeader({ children, className, color }: CardHeaderProps) {
+export function CardHeader({ children, className, style }: CardHeaderProps) {
   return (
     <div
-      className={cn('px-4 py-3 border-b-2 border-neo-black font-bold', className)}
-      style={color ? { backgroundColor: color } : undefined}
+      className={cn(className)}
+      style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--border)',
+        fontWeight: 600,
+        color: 'var(--text-primary)',
+        fontSize: 14,
+        ...style,
+      }}
     >
       {children}
     </div>
   )
 }
 
-export function CardBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('p-4', className)}>{children}</div>
+export function CardBody({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      className={cn(className)}
+      style={{ padding: 16, ...style }}
+    >
+      {children}
+    </div>
+  )
 }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { cn } from '@/lib/utils/cn'
 import { Button } from './button'
 
 interface ModalProps {
@@ -9,43 +8,94 @@ interface ModalProps {
   onClose: () => void
   title: string
   children: React.ReactNode
-  className?: string
+  size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
-export function Modal({ open, onClose, title, children, className }: ModalProps) {
+const SIZE_WIDTH: Record<string, number> = {
+  sm: 400,
+  md: 560,
+  lg: 720,
+  xl: 900,
+}
+
+export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
   useEffect(() => {
     if (!open) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+      document.body.style.overflow = ''
     }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
   }, [open, onClose])
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-neo-black/60"
         onClick={onClose}
         aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+        }}
       />
 
       {/* Dialog */}
       <div
-        className={cn(
-          'relative neo-card w-full max-w-lg max-h-[90vh] flex flex-col',
-          className,
-        )}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: SIZE_WIDTH[size],
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 16,
+          boxShadow: 'var(--shadow-xl)',
+          overflow: 'hidden',
+        }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-2 border-neo-black">
-          <h2 id="modal-title" className="text-lg font-bold text-neo-black">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 20px',
+            borderBottom: '1px solid var(--border)',
+            backgroundColor: 'var(--bg-surface-2)',
+            flexShrink: 0,
+          }}
+        >
+          <h2
+            id="modal-title"
+            style={{
+              fontSize: 16,
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              margin: 0,
+            }}
+          >
             {title}
           </h2>
           <Button
@@ -53,14 +103,22 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
             size="sm"
             onClick={onClose}
             aria-label="Tutup"
-            className="w-8 h-8 p-0 flex items-center justify-center"
+            style={{ width: 32, height: 32, padding: 0, fontSize: 16, borderRadius: 8 }}
           >
             ✕
           </Button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   )
