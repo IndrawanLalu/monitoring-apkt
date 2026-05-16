@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { SHIFT_LABEL } from '@/constants'
 import { formatTanggal } from '@/lib/utils/format'
 import type { ShiftType } from '@/types'
@@ -61,8 +62,7 @@ interface Props {
 const fmtJam = (j: string) => j.slice(0, 5)
 
 function isShiftActive(jamMulai: string, jamSelesai: string): boolean {
-  const nowUtc = new Date()
-  const nowWita = new Date(nowUtc.getTime() + 8 * 60 * 60 * 1000)
+  const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
   const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
   const [mh, mm] = jamMulai.split(':').map(Number)
   const [sh, sm] = jamSelesai.split(':').map(Number)
@@ -76,7 +76,6 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   const [piketList, setPiketList] = useState<PiketRow[]>(initial)
   const [namaCC, setNamaCC] = useState('')
   const [selectedUlps, setSelectedUlps] = useState<string[]>(ulps.map(u => u.id))
-  
   const [petugasAssign, setPetugasAssign] = useState<Record<string, [string, string]>>(() =>
     Object.fromEntries(reguList.map((r) => [r.id, ['', '']]))
   )
@@ -85,8 +84,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   const formRef = useRef<HTMLDivElement>(null)
 
   const canManage = role === 'admin' || role === 'supervisor' || role === 'cc'
-  
-  // Tanggal WITA (UTC+8)
+
   const todayDate = new Date(Date.now() + 8 * 60 * 60 * 1000)
   const today = todayDate.toISOString().split('T')[0]
 
@@ -95,9 +93,10 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   )
   const activeUlpIds = new Set(activePikets.map(p => p.ulp_id))
   const currentShiftType = shiftTypes.find((s) => isShiftActive(s.jam_mulai, s.jam_selesai))
+  const ulpTanpaPiket = ulps.filter(u => !activeUlpIds.has(u.id))
 
   function toggleUlp(id: string) {
-    setSelectedUlps(prev => 
+    setSelectedUlps(prev =>
       prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]
     )
   }
@@ -124,9 +123,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
 
   function handlePakai(piket: PiketRow) {
     setNamaCC(piket.nama_cc ?? '')
-    if (!selectedUlps.includes(piket.ulp_id)) {
-      setSelectedUlps(prev => [...prev, piket.ulp_id])
-    }
+    if (!selectedUlps.includes(piket.ulp_id)) setSelectedUlps(prev => [...prev, piket.ulp_id])
     const newAssign = { ...petugasAssign }
     for (const pp of piket.piket_petugas ?? []) {
       const slots = newAssign[pp.regu_id] ?? ['', '']
@@ -146,7 +143,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
     const reguKosong = reguList
       .filter(r => selectedUlps.includes(r.ulp_id))
       .filter((r) => !(petugasAssign[r.id] ?? []).some(Boolean))
-      
+
     if (reguKosong.length > 0) {
       setError(`Regu belum ada petugas: ${reguKosong.map((r) => r.nama).join(', ')}`)
       return
@@ -157,7 +154,6 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
 
     try {
       const newPikets: PiketRow[] = []
-      
       for (const uId of selectedUlps) {
         const petugas_assignments = reguList
           .filter(r => r.ulp_id === uId)
@@ -170,29 +166,19 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
         const res = await fetch('/api/piket', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ulp_id: uId,
-            shift_type_id: currentShiftType.id,
-            tanggal: today,
-            nama_cc: namaCC.trim(),
-            petugas_assignments,
-          }),
+          body: JSON.stringify({ ulp_id: uId, shift_type_id: currentShiftType.id, tanggal: today, nama_cc: namaCC.trim(), petugas_assignments }),
         })
-        
         const json = await res.json() as { data: PiketRow; error: string | null }
         if (!res.ok || json.error) {
-           // Skip if conflict (already exists), but we should probably inform user
-           if (res.status !== 409) {
-             throw new Error(json.error ?? 'Gagal membuat piket')
-           }
+          if (res.status !== 409) throw new Error(json.error ?? 'Gagal membuat piket')
         } else {
-           const display: PiketPetugasNested[] = petugas_assignments.flatMap(({ regu_id, petugas_ids }) =>
-             petugas_ids.map((pid) => ({
-               regu_id,
-               petugas: { id: pid, nama: petugasMaster.find((p) => p.id === pid)?.nama ?? '' },
-             })),
-           )
-           newPikets.push({ ...json.data, piket_petugas: display })
+          const display: PiketPetugasNested[] = petugas_assignments.flatMap(({ regu_id, petugas_ids }) =>
+            petugas_ids.map((pid) => ({
+              regu_id,
+              petugas: { id: pid, nama: petugasMaster.find((p) => p.id === pid)?.nama ?? '' },
+            })),
+          )
+          newPikets.push({ ...json.data, piket_petugas: display })
         }
       }
 
@@ -200,12 +186,9 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
         setPiketList((prev) => [...newPikets, ...prev])
         setNamaCC('')
         setPetugasAssign(Object.fromEntries(reguList.map((r) => [r.id, ['', '']])))
-        // Do not clear selectedUlps, user might want same combo next time
       } else {
-        // This implies all selected ULPs returned 409 (already have shifts)
         setError('Piket untuk ULP tersebut sudah dibuat.')
       }
-
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -219,138 +202,190 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
     setPiketList((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const ulpTanpaPiket = ulps.filter(u => !activeUlpIds.has(u.id))
-
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* Form / Active notice */}
+      {/* Form Area */}
       {canManage && (
-        <div ref={formRef} className="shrink-0 border-b-2 border-neo-black">
+        <div ref={formRef} style={{ flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {/* Semua ULP sudah aktif */}
           {ulpTanpaPiket.length === 0 && activePikets.length > 0 ? (
-            <div className="px-6 py-3 flex items-center gap-3 bg-[#1DB954]/10">
-              <span className="text-xl">✅</span>
+            <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, backgroundColor: 'rgba(29,185,84,0.1)' }}>
+              <span style={{ fontSize: 20 }}>✅</span>
               <div>
-                <span className="font-black text-neo-black text-sm">
+                <span style={{ fontWeight: 700, color: '#1DB954', fontSize: 14 }}>
                   {SHIFT_LABEL[activePikets[0].shift_type.nama]} sedang aktif untuk semua ULP
                 </span>
-                <span className="text-xs text-gray-500 ml-2">
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
                   {fmtJam(activePikets[0].shift_type.jam_mulai)}–{fmtJam(activePikets[0].shift_type.jam_selesai)}
                 </span>
               </div>
             </div>
           ) : (
-            <div className="p-4 max-w-5xl mx-auto">
+            <div style={{ padding: '16px 20px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+              {/* Warning belum ada piket */}
               {activePikets.length === 0 && (
-                <div className="mb-4 px-4 py-3 border-2 border-pln-red bg-pln-red/10 flex items-start gap-3 shadow-neo">
-                   <span className="text-xl mt-0.5">⚠️</span>
-                   <div>
-                     <p className="font-black text-pln-red">Piket Belum Diisi!</p>
-                     <p className="text-sm font-medium text-pln-red/80 mt-0.5">
-                       Anda harus mengisi shift piket agar dapat menggunakan aplikasi (Dashboard, Laporan, dll).
-                     </p>
-                   </div>
+                <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, backgroundColor: 'rgba(228,0,43,0.08)', border: '1px solid rgba(228,0,43,0.25)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <span style={{ fontSize: 18, marginTop: 1 }}>⚠️</span>
+                  <div>
+                    <p style={{ fontWeight: 700, color: '#E4002B', margin: 0, fontSize: 14 }}>Piket Belum Diisi!</p>
+                    <p style={{ fontSize: 12, color: '#E4002B', opacity: 0.8, margin: '3px 0 0' }}>
+                      Anda harus mengisi shift piket agar dapat menggunakan aplikasi (Dashboard, Laporan, dll).
+                    </p>
+                  </div>
                 </div>
               )}
-              
-              <div className="border-2 border-neo-black shadow-neo">
-                <div className="px-4 py-3 border-b-2 border-neo-black bg-pln-yellow flex items-center gap-3 flex-wrap">
-                  <span className="font-black text-neo-black">+ Buat Piket Baru</span>
-                  {currentShiftType && (
-                    <span className="text-xs font-bold text-neo-black/70">
-                      {SHIFT_LABEL[currentShiftType.nama]} · {fmtJam(currentShiftType.jam_mulai)}–{fmtJam(currentShiftType.jam_selesai)} · {formatTanggal(today + 'T00:00:00')}
-                    </span>
-                  )}
+
+              {/* Form Card */}
+              <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                {/* Card Header */}
+                <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--accent-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>+ Buat Piket Baru</span>
+                    {currentShiftType && (
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
+                        {SHIFT_LABEL[currentShiftType.nama]} · {fmtJam(currentShiftType.jam_mulai)}–{fmtJam(currentShiftType.jam_selesai)} · {formatTanggal(today + 'T00:00:00')}
+                      </span>
+                    )}
+                  </div>
                   {activePikets.length > 0 && (
-                    <span className="ml-auto text-xs font-bold text-pln-red bg-white px-2 py-1 border-2 border-neo-black">
-                      Belum aktif di: {ulpTanpaPiket.map(u => u.nama).join(', ')}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: '#E4002B', backgroundColor: 'rgba(228,0,43,0.1)', border: '1px solid rgba(228,0,43,0.25)', borderRadius: 6, padding: '2px 8px' }}>
+                      Belum aktif: {ulpTanpaPiket.map(u => u.nama).join(', ')}
                     </span>
                   )}
                 </div>
-                <div className="p-4 flex flex-col gap-6">
-                  {/* Bagian Atas: Input CC & Ceklis ULP */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Baris: Nama CC & Pilih ULP */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    {/* Nama CC */}
+                    <Input
+                      label="Nama CC *"
+                      placeholder="Nama petugas Command Center..."
+                      value={namaCC}
+                      onChange={(e) => setNamaCC(e.target.value)}
+                    />
+
+                    {/* ULP Selector */}
                     <div>
-                      <label className="text-sm font-bold text-neo-black block mb-2">
-                        Nama CC <span className="text-pln-red">*</span>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'block' }}>
+                        Pilih ULP <span style={{ color: '#E4002B' }}>*</span>
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Nama petugas Command Center..."
-                        value={namaCC}
-                        onChange={(e) => setNamaCC(e.target.value)}
-                        className="neo-input w-full px-3 py-2 text-sm font-medium"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-bold text-neo-black block mb-2">
-                        Pilih ULP <span className="text-pln-red">*</span>
-                      </label>
-                      <div className="flex flex-wrap gap-2">
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                         {ulps.map(ulp => {
-                          const isActive = activeUlpIds.has(ulp.id)
+                          const isSelected = selectedUlps.includes(ulp.id)
+                          const isAlreadyActive = activeUlpIds.has(ulp.id)
+
                           return (
-                            <label key={ulp.id} className={`flex items-center gap-2 border-2 px-3 py-1.5 cursor-pointer transition-colors ${selectedUlps.includes(ulp.id) ? 'border-neo-black bg-neo-black text-white' : 'border-neo-gray bg-white text-gray-500'} ${isActive ? 'opacity-50' : ''}`}>
-                               <input 
-                                 type="checkbox" 
-                                 className="hidden" 
-                                 checked={selectedUlps.includes(ulp.id)} 
-                                 onChange={() => toggleUlp(ulp.id)} 
-                               />
-                               <span className="text-xs font-black">{ulp.nama}</span>
-                               {isActive && <span className="text-[10px]">✅</span>}
-                            </label>
+                            <button
+                              key={ulp.id}
+                              type="button"
+                              onClick={() => !isAlreadyActive && toggleUlp(ulp.id)}
+                              title={isAlreadyActive ? 'ULP ini sudah memiliki piket aktif' : ulp.nama}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '6px 12px',
+                                borderRadius: 8,
+                                border: '2px solid',
+                                borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
+                                backgroundColor: isSelected ? 'var(--accent)' : 'var(--bg-surface-2)',
+                                color: isSelected ? '#fff' : 'var(--text-secondary)',
+                                cursor: isAlreadyActive ? 'not-allowed' : 'pointer',
+                                opacity: isAlreadyActive ? 0.5 : 1,
+                                transition: 'all 0.15s ease',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                outline: 'none',
+                              }}
+                            >
+                              {/* Checkmark / empty box */}
+                              <span style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: 4,
+                                border: isSelected ? 'none' : '2px solid var(--border-strong)',
+                                backgroundColor: isSelected ? 'rgba(255,255,255,0.25)' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                fontSize: 11,
+                                fontWeight: 800,
+                              }}>
+                                {isSelected && '✓'}
+                              </span>
+                              {ulp.nama}
+                              {isAlreadyActive && (
+                                <span style={{ fontSize: 10, opacity: 0.8 }}>✅</span>
+                              )}
+                            </button>
                           )
                         })}
                       </div>
                     </div>
                   </div>
 
-                  {/* Petugas grid */}
-                  <div className="space-y-4">
-                    {selectedUlps.map(uId => {
-                      const ulp = ulps.find(u => u.id === uId)
-                      const uReguList = reguList.filter(r => r.ulp_id === uId)
-                      if (!ulp || uReguList.length === 0) return null
-                      
-                      return (
-                        <div key={uId} className="border-2 border-neo-gray p-3">
-                          <p className="text-xs font-black text-neo-black mb-2 uppercase tracking-wide bg-neo-gray inline-block px-2 py-0.5">Regu ULP {ulp.nama}</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {uReguList.map((regu) => {
-                              const slots = petugasAssign[regu.id] ?? ['', '']
-                              return (
-                                <div key={regu.id} className="flex items-center gap-2 border border-neo-gray px-2 py-1.5">
-                                  <span className="text-xs font-black text-neo-black w-16 shrink-0">{regu.nama}</span>
-                                  {([0, 1] as const).map((slot) => (
-                                    <select
-                                      key={slot}
-                                      value={slots[slot]}
-                                      onChange={(e) => setSlot(regu.id, slot, e.target.value)}
-                                      className="neo-input px-2 py-1 text-xs flex-1"
-                                    >
-                                      <option value="">— Pilih —</option>
-                                      {petugasMaster
-                                        .filter(p => p.ulp_id === uId)
-                                        .filter((p) => !getSelectedElsewhere(regu.id, slot).has(p.id))
-                                        .map((p) => (
-                                          <option key={p.id} value={p.id}>{p.nama}</option>
-                                        ))}
-                                    </select>
-                                  ))}
-                                </div>
-                              )
-                            })}
+                  {/* Petugas Assignment per ULP */}
+                  {selectedUlps.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {selectedUlps.map(uId => {
+                        const ulp = ulps.find(u => u.id === uId)
+                        const uReguList = reguList.filter(r => r.ulp_id === uId)
+                        if (!ulp || uReguList.length === 0) return null
+
+                        return (
+                          <div key={uId} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                            {/* Sub-header ULP */}
+                            <div style={{ padding: '6px 12px', backgroundColor: 'var(--bg-surface-2)', borderBottom: '1px solid var(--border)' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Regu — {ulp.nama}
+                              </span>
+                            </div>
+                            <div style={{ padding: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
+                              {uReguList.map((regu) => {
+                                const slots = petugasAssign[regu.id] ?? ['', '']
+                                return (
+                                  <div key={regu.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', width: 60, flexShrink: 0 }}>{regu.nama}</span>
+                                    {([0, 1] as const).map((slot) => (
+                                      <select
+                                        key={slot}
+                                        value={slots[slot]}
+                                        onChange={(e) => setSlot(regu.id, slot, e.target.value)}
+                                        className="input"
+                                        style={{ flex: 1, fontSize: 12, padding: '4px 8px', cursor: 'pointer' }}
+                                      >
+                                        <option value="">— Pilih —</option>
+                                        {petugasMaster
+                                          .filter(p => p.ulp_id === uId)
+                                          .filter((p) => !getSelectedElsewhere(regu.id, slot).has(p.id))
+                                          .map((p) => (
+                                            <option key={p.id} value={p.id}>{p.nama}</option>
+                                          ))}
+                                      </select>
+                                    ))}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
 
-                  {error && <p className="text-sm font-medium text-pln-red bg-pln-red/10 px-3 py-2 border border-pln-red">{error}</p>}
+                  {/* Error */}
+                  {error && (
+                    <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: 'rgba(228,0,43,0.1)', border: '1px solid rgba(228,0,43,0.25)' }}>
+                      <p style={{ fontSize: 13, color: '#E4002B', margin: 0, fontWeight: 500 }}>⚠ {error}</p>
+                    </div>
+                  )}
 
-                  <div className="flex justify-end pt-2 border-t-2 border-neo-black border-dashed">
-                    <Button variant="primary" loading={loading} onClick={handleBuat} className="w-full sm:w-auto text-base">
+                  {/* Submit */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
+                    <Button variant="primary" loading={loading} onClick={handleBuat} size="lg">
                       Buat Piket {selectedUlps.length > 0 ? `(${selectedUlps.length} ULP)` : ''}
                     </Button>
                   </div>
@@ -362,13 +397,13 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
       )}
 
       {/* Riwayat */}
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-5xl mx-auto space-y-3">
-          <h2 className="font-black text-neo-black text-sm uppercase tracking-wide border-b-2 border-neo-black pb-2">
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
             Riwayat Piket
           </h2>
           {piketList.length === 0 ? (
-            <div className="border-2 border-neo-black p-8 text-center text-sm text-gray-400 bg-neo-gray">
+            <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 12, backgroundColor: 'var(--bg-surface-2)' }}>
               Belum ada data piket
             </div>
           ) : (
@@ -391,15 +426,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   )
 }
 
-function PiketCard({
-  piket,
-  ulpName,
-  reguList,
-  canManage,
-  isActive,
-  onHapus,
-  onPakai,
-}: {
+function PiketCard({ piket, ulpName, reguList, canManage, isActive, onHapus, onPakai }: {
   piket: PiketRow
   ulpName: string
   reguList: ReguMini[]
@@ -417,64 +444,74 @@ function PiketCard({
   const reguWithPetugas = reguList.filter((r) => petugasByRegu[r.id]?.length)
 
   return (
-    <div className={`border-2 border-neo-black shadow-neo overflow-hidden ${isActive ? 'ring-2 ring-[#1DB954]' : ''}`}>
-      {/* Header card */}
-      <div
-        className="px-4 py-3 border-b-2 border-neo-black flex items-center justify-between gap-3 flex-wrap"
-        style={{ backgroundColor: isActive ? '#1DB954' : '#E5E5E5' }}
-      >
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="px-2 py-0.5 bg-neo-black text-white text-xs font-black">
+    <div style={{
+      backgroundColor: 'var(--bg-surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      boxShadow: isActive ? '0 0 0 2px #1DB954, var(--shadow-sm)' : 'var(--shadow-sm)',
+    }}>
+      {/* Card Header */}
+      <div style={{
+        padding: '10px 14px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        flexWrap: 'wrap',
+        backgroundColor: isActive ? 'rgba(29,185,84,0.12)' : 'var(--bg-surface-2)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* ULP badge */}
+          <span style={{
+            fontSize: 11,
+            fontWeight: 700,
+            padding: '2px 8px',
+            borderRadius: 5,
+            backgroundColor: isActive ? '#1DB954' : 'var(--accent)',
+            color: '#fff',
+          }}>
             {ulpName}
           </span>
-          <span className={`font-black text-sm ${isActive ? 'text-white' : 'text-neo-black'}`}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
             {SHIFT_LABEL[shift.nama]} — {formatTanggal(piket.tanggal + 'T00:00:00')}
           </span>
-          <span className={`text-xs font-medium ${isActive ? 'text-white/80' : 'text-gray-500'}`}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {fmtJam(shift.jam_mulai)}–{fmtJam(shift.jam_selesai)}
           </span>
           {piket.nama_cc && (
-            <span className={`text-xs font-bold ${isActive ? 'text-white/90' : 'text-pln-blue'}`}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)' }}>
               👤 {piket.nama_cc}
             </span>
           )}
           {isActive && (
-            <span className="px-2 py-0.5 bg-white text-[#1DB954] text-xs font-black border-2 border-white">
-              AKTIF
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, backgroundColor: '#1DB954', color: '#fff', letterSpacing: '0.04em' }}>
+              ● AKTIF
             </span>
           )}
         </div>
 
         {canManage && (
-          <div className="flex gap-1.5 shrink-0">
-            <button
-              onClick={() => onPakai(piket)}
-              className="px-3 py-1.5 text-xs font-bold border-2 border-neo-black bg-pln-yellow text-neo-black hover:-translate-x-0.5 hover:-translate-y-0.5 transition-transform"
-            >
-              ♻️ Pakai
-            </button>
-            <button
-              onClick={() => onHapus(piket.id)}
-              className="px-3 py-1.5 text-xs font-bold border-2 border-pln-red bg-white text-pln-red hover:bg-pln-red hover:text-white transition-colors"
-            >
-              Hapus
-            </button>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <Button variant="yellow" size="sm" onClick={() => onPakai(piket)}>♻️ Pakai</Button>
+            <Button variant="danger" size="sm" onClick={() => onHapus(piket.id)}>Hapus</Button>
           </div>
         )}
       </div>
 
-      {/* Petugas grid */}
+      {/* Petugas Grid */}
       {reguWithPetugas.length > 0 ? (
-        <div className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 bg-neo-white">
+        <div style={{ padding: '10px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
           {reguWithPetugas.map((regu) => (
             <div key={regu.id}>
-              <p className="text-xs font-black text-neo-black">{regu.nama}</p>
-              <p className="text-xs text-gray-600 mt-0.5">{petugasByRegu[regu.id].join(' & ')}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px' }}>{regu.nama}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{petugasByRegu[regu.id].join(' & ')}</p>
             </div>
           ))}
         </div>
       ) : (
-        <div className="px-4 py-3 text-xs text-gray-400 italic bg-neo-white">
+        <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
           Tidak ada data petugas
         </div>
       )}
