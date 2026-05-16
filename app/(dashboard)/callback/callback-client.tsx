@@ -218,7 +218,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CreateLaporanInput, string>>>({})
   const [pasteText, setPasteText] = useState('')
   const [showPaste, setShowPaste] = useState(true)
-  const [done, setDone] = useState<{ values: CreateLaporanInput; namaRegu: string; magicToken: string; nomorHpRegu: string } | null>(null)
+  const [done, setDone] = useState<{ values: CreateLaporanInput; namaRegu: string; magicToken: string; nomorHpRegu: string; reguUlpNama: string } | null>(null)
   const [values, setValues] = useState<CreateLaporanInput>({
     nomor_tiket: '', regu_id: '', nama_pelanggan: '', nomor_pelanggan: '',
     lokasi: '', keterangan: '', created_at: undefined, status: 'lapor',
@@ -252,22 +252,24 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
   const namaRegu = selectedRegu?.nama ?? ''
   const nomorHpRegu = selectedRegu?.nomor_hp ?? ''
 
+  const reguUlpNama = selectedRegu?.ulpNama ?? ulpNama
+
   const pesanWa = useMemo(() =>
     applyTemplate(template, {
       nama: values.nama_pelanggan, nomor_tiket: values.nomor_tiket,
-      lokasi: values.lokasi, regu: namaRegu, ulp: ulpNama, keterangan: values.keterangan ?? '',
+      lokasi: values.lokasi, regu: namaRegu, ulp: reguUlpNama, keterangan: values.keterangan ?? '',
       link_antrian: '[link antrian]', no_hp: nomorHpRegu,
     }),
-    [template, values.nama_pelanggan, values.nomor_tiket, values.lokasi, namaRegu, ulpNama, values.keterangan, nomorHpRegu],
+    [template, values.nama_pelanggan, values.nomor_tiket, values.lokasi, namaRegu, reguUlpNama, values.keterangan, nomorHpRegu],
   )
 
-  function bukaWa(v: CreateLaporanInput, nama: string, magicToken = '', nomorHpReguVal = '') {
+  function bukaWa(v: CreateLaporanInput, nama: string, magicToken = '', nomorHpReguVal = '', reguUlpNamaVal = '') {
     const nomor = formatNomorWa(v.nomor_pelanggan ?? '')
     if (!nomor || nomor.length < 10) return
     const linkAntrian = magicToken ? `${process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/antrian/${magicToken}` : ''
     const pesan = applyTemplate(template, {
       nama: v.nama_pelanggan, nomor_tiket: v.nomor_tiket,
-      lokasi: v.lokasi, regu: nama, ulp: ulpNama, keterangan: v.keterangan ?? '',
+      lokasi: v.lokasi, regu: nama, ulp: reguUlpNamaVal || ulpNama, keterangan: v.keterangan ?? '',
       link_antrian: linkAntrian, no_hp: nomorHpReguVal,
     })
     window.open(`https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`, '_blank')
@@ -283,17 +285,19 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
       setFieldErrors(errs); return
     }
     setLoading(true)
+    const reguUlpId = selectedRegu?.ulp_id ?? ulpId
     const res = await fetch('/api/callback/laporan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...result.data, ulp_id: ulpId }),
+      body: JSON.stringify({ ...result.data, ulp_id: reguUlpId }),
     })
     const json = await res.json() as { data: { id: string; magic_token: string } | null; error: string | null }
     setLoading(false)
     if (!res.ok || json.error) { setServerError(json.error ?? 'Gagal menyimpan laporan'); return }
     const magicToken = json.data?.magic_token ?? ''
-    setDone({ values: result.data, namaRegu, magicToken, nomorHpRegu })
-    bukaWa(result.data, namaRegu, magicToken, nomorHpRegu)
+    const reguUlpNamaVal = selectedRegu?.ulpNama ?? ulpNama
+    setDone({ values: result.data, namaRegu, magicToken, nomorHpRegu, reguUlpNama: reguUlpNamaVal })
+    bukaWa(result.data, namaRegu, magicToken, nomorHpRegu, reguUlpNamaVal)
   }
 
   function handleReset() {
@@ -309,9 +313,9 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <DoneScreen
             v={done.values} nr={done.namaRegu} mt={done.magicToken} nhpRegu={done.nomorHpRegu}
-            ulpNama={ulpNama} template={template}
+            ulpNama={done.reguUlpNama} template={template}
             onReset={handleReset}
-            onResend={() => bukaWa(done.values, done.namaRegu, done.magicToken, done.nomorHpRegu)}
+            onResend={() => bukaWa(done.values, done.namaRegu, done.magicToken, done.nomorHpRegu, done.reguUlpNama)}
           />
         </div>
       </div>

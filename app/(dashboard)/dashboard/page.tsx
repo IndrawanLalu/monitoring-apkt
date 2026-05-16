@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { DashboardClient } from './dashboard-client'
 import { getProfile } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   const nowWita = new Date(nowUtc.getTime() + 8 * 60 * 60 * 1000)
   const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
   const today = nowWita.toISOString().split('T')[0]
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const ulpIds = profile.ulps.map((u) => u.id)
 
   const [piketsRes, regusRes, laporansRes] = await Promise.all([
@@ -69,9 +69,7 @@ export default async function DashboardPage() {
     const petugasList = activePiket
       ? petugasFlatList.filter((p) => p.piket_id === activePiket.id)
       : []
-    // Piket tanpa petugas = belum ada piket aktif
-    const piket = petugasList.length > 0 ? activePiket : null
-    return { ulp, piket, reguList, petugasList: piket ? petugasList : [], laporanList }
+    return { ulp, piket: activePiket, reguList, petugasList, laporanList }
   })
 
   return (

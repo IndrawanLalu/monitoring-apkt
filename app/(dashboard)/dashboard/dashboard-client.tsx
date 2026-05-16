@@ -266,18 +266,12 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                 </div>
               </div>
 
-              {/* Regu Grid or No-Piket State */}
-              {!piket ? (
+              {/* Regu Grid (tampil selalu, piket=null berarti tidak ada shift aktif) */}
+              {reguStats.length === 0 ? (
                 <div style={{ flex: 1, position: 'relative' }}>
                   <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Belum ada piket aktif</p>
-                      <button
-                        style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
-                        onClick={() => router.push('/piket')}
-                      >
-                        Buat piket
-                      </button>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Belum ada regu terdaftar</p>
                     </div>
                   </div>
                 </div>
@@ -296,7 +290,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                       <div key={stats.regu.id} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
                         <ReguCard
                           stats={stats}
-                          onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket.id, reguList)}
+                          onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
                           onKirimWa={handleKirimWa}
                           onUpdateLaporan={openUpdateLaporan}
                           sendingWa={sendingWa === stats.regu.id}

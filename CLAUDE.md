@@ -1,3 +1,49 @@
+# Log Perubahan - 17 Mei 2026
+
+## 3. Fix Multi-ULP: Dashboard, Callback, Settings, Navbar
+
+### Masalah yang Ditemukan
+- Dashboard hanya menampilkan data 1 ULP karena RLS Supabase (`get_my_ulp_id()`) hanya mengembalikan 1 ULP dari kolom `profiles.ulp_id`, sementara akses multi-ULP disimpan di tabel `user_ulp`.
+- Laporan dari halaman Callback tersimpan dengan `ulp_id` yang salah (dari cookie `active_ulp_id`) tapi `regu_id` dari ULP lain → data tidak muncul di regu card manapun.
+- Settings hanya menampilkan data ULP pertama, tidak bisa kelola ULP kedua.
+- Navbar punya dropdown switch ULP yang menjadi sumber kebingungan.
+
+### Perbaikan
+
+**`app/(dashboard)/dashboard/page.tsx`**
+- Ganti `createClient()` → `createAdminClient()` agar query piket, regu, laporan, dan `piket_petugas` tidak terblokir RLS.
+- Hapus cek `petugasList.length > 0` yang menyebabkan ULP tanpa petugas di-assign dianggap "tidak ada piket aktif".
+
+**`app/(dashboard)/dashboard/dashboard-client.tsx`**
+- Regu cards selalu tampil selama ada regu terdaftar, tidak lagi bergantung pada `piket !== null`.
+- Tombol "Tambah Laporan" memakai `piket?.id ?? null` agar aman saat piket kosong.
+
+**`app/(dashboard)/callback/callback-client.tsx`**
+- `ulp_id` laporan sekarang diambil dari `selectedRegu.ulp_id`, bukan dari cookie `active_ulp_id`.
+- Variabel `{ulp}` di template WA mengikuti nama ULP dari regu yang dipilih.
+- Berlaku juga untuk fungsi `bukaWa()` dan layar Done.
+
+**`components/layout/navbar.tsx`**
+- Hapus dropdown switch ULP beserta fungsi `handleSwitchUlp` dan state `switchingUlp`.
+- Diganti teks statis yang menampilkan semua nama ULP user (contoh: "Ampenan & Tanjung").
+
+**`app/(dashboard)/settings/page.tsx`**
+- Load data regu, petugas, wa_template_callback, dan wa_grup_id untuk **semua ULP** sekaligus menggunakan `createAdminClient()`.
+- Tidak lagi bergantung pada `profile.activeUlp`.
+
+**`app/(dashboard)/settings/settings-client.tsx`**
+- Tambah **ULP selector chip** di atas tab bar (hanya muncul jika user punya >1 ULP).
+- State `ulpStates[]` menyimpan reguList, petugasList, waGrupId per ULP secara terpisah.
+- Semua tab (WA, Regu, Petugas, Template Callback) otomatis menampilkan data ULP yang dipilih.
+- `CallbackTemplateTab` diberi `key={current.ulp.id}` agar re-mount saat ganti ULP.
+
+### Arsitektur Multi-ULP
+- `getProfile()` di `lib/auth.ts` memakai `createAdminClient()` → membaca `user_ulp` → mengembalikan `profile.ulps[]` (semua ULP yang diizinkan).
+- Halaman server-side yang perlu data multi-ULP harus memakai `createAdminClient()` dan filter manual dengan `ulpIds = profile.ulps.map(u => u.id)`.
+- RLS `get_my_ulp_id()` di `supabase/schema.sql` hanya mengembalikan 1 ULP dari `profiles.ulp_id` — **jangan andalkan ini untuk query multi-ULP**. Gunakan `get_my_ulp_ids()` dari `supabase/fix_rls_multi_ulp.sql` (sudah dijalankan di Supabase) atau pakai admin client di server component.
+
+---
+
 # Log Perubahan - 16 Mei 2026
 
 ## 1. Fitur Survey Kepuasan Pelanggan (Halaman Antrian)
