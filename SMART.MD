@@ -29,3 +29,12 @@ echo ">>> restart PM2..."
 pm2 restart all
 
 echo "=== DEPLOY DONE ==="
+
+
+# MONITORING APKT
+cd /var/www/monitoring-apkt
+pm2 stop monitoring-apkt
+git pull
+pnpm install
+pnpm run build
+pm2 restart monitoring-apkt

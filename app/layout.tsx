@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Monitoring APKT — PLN",
-  description: "Sistem monitoring laporan gangguan pelanggan PLN",
+  title: "Command Center - UP3 Mataram",
+  description: "Sistem monitoring laporan gangguan pelanggan",
   icons: {
     icon: [{ url: "/live-chat.png", type: "image/png" }],
   },

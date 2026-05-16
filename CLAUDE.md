@@ -99,6 +99,10 @@ profiles (id, ulp_id, nama, role)   -- role: admin | supervisor | cc
 
 ## WhatsApp Integration
 
+### Session Management
+- Menggunakan mekanisme auto-cleanup untuk session yang stale/hang untuk mencegah memory leak dan build failure.
+- Penanganan error terpusat dengan UI feedback yang jelas agar QR code atau status terupdate realtime.
+
 ### Pesan Laporan Baru
 ```
 🔴 LAPORAN BARU | #G441550xxx
@@ -281,6 +285,7 @@ if (pathname.startsWith("/antrian/")) { return supabaseResponse }
 Public routes saat ini:
 - `/magic/*` — magic link petugas lapangan
 - `/antrian/*` — halaman antrian untuk pelanggan (no auth)
+- `/rekap-laporan` — halaman public rekap laporan (diproteksi dengan PIN)
 - `/login` — auth page
 
 ### Halaman Antrian Pelanggan
@@ -311,6 +316,8 @@ Fungsi `isShiftActive(jamMulai, jamSelesai, nowM)` dipakai di server (dashboard,
 ## Piket & Callback Rules
 
 - **Piket tanpa petugas = tidak ada piket aktif**: Dashboard dan callback memperlakukan piket yang tidak punya satu pun entri `piket_petugas` sebagai "belum ada piket aktif".
+- **Global Piket Guard**: `<PiketGuard>` membatasi akses dashboard. Jika tidak ada piket aktif, user (CC) di-redirect ke halaman pembuatan piket untuk memastikan data selalu sinkron.
+- **Multi-ULP Shift Creation**: Pembuatan piket dapat dilakukan secara kolektif/multi-ULP dalam satu form, mempermudah manajemen penugasan regu dan petugas melintasi beberapa unit kerja.
 - **Callback regu**: Dropdown regu di CC Callback hanya menampilkan regu yang terdaftar di `piket_petugas` piket aktif ULP saat ini. Jika tidak ada piket aktif, form disabled dengan pesan link ke halaman Piket.
 - **Template WA Callback**: Variabel yang tersedia: `{nama}` `{nomor_tiket}` `{lokasi}` `{regu}` `{ulp}` `{keterangan}` `{link_antrian}` `{no_hp}` — `{no_hp}` adalah `nomor_hp` dari tabel `regu` (bukan nomor pelanggan).
 
@@ -348,9 +355,11 @@ WA_SESSION_DIR=./wa-sessions
 - [x] Tombol kirim laporan per regu (manual CC)
 - [x] Tombol rekap serah terima piket
 - [x] Rekap Laporan harian — filter tanggal/piket/regu, per-regu & per-piket breakdown
+- [x] Rekap Laporan Publik — Mobile-optimized, PIN-protected untuk manajemen
 - [x] Manajemen Regu — CRUD + nomor HP regu (perlu migrasi DB: `ALTER TABLE regu ADD COLUMN nomor_hp text`)
+- [x] Manajemen Shift & Piket (Piket Guard, Multi-ULP Shift Creation)
+- [x] Stabilisasi WhatsApp Session (Auto-cleanup, error handling)
 - [ ] APKT integration (in progress — `app/(dashboard)/apkt/`, belum di-commit)
 - [ ] Manajemen ULP, Petugas (admin)
-- [ ] Manajemen Shift & Piket
 - [ ] Riwayat status per laporan
 - [ ] Multi-ULP isolation (RLS)
