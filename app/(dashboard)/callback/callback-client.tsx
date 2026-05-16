@@ -160,7 +160,7 @@ function DoneScreen({ v, nr, mt, nhpRegu, onReset, onResend, ulpNama, template }
 }) {
   const nomorWa = formatNomorWa(v.nomor_pelanggan ?? '')
   const nomorValid = nomorWa.length >= 10
-  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  const base = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
   const linkAntrian = mt ? `${base}/antrian/${mt}` : ''
 
   return (
@@ -264,7 +264,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
   function bukaWa(v: CreateLaporanInput, nama: string, magicToken = '', nomorHpReguVal = '') {
     const nomor = formatNomorWa(v.nomor_pelanggan ?? '')
     if (!nomor || nomor.length < 10) return
-    const linkAntrian = magicToken ? `${window.location.origin}/antrian/${magicToken}` : ''
+    const linkAntrian = magicToken ? `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/antrian/${magicToken}` : ''
     const pesan = applyTemplate(template, {
       nama: v.nama_pelanggan, nomor_tiket: v.nomor_tiket,
       lokasi: v.lokasi, regu: nama, ulp: ulpNama, keterangan: v.keterangan ?? '',
