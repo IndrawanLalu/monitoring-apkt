@@ -6,19 +6,20 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils/cn'
 import type { UserProfile } from '@/lib/auth'
+import { ThemeToggle } from './theme-toggle'
 
 interface NavbarProps {
   profile: UserProfile
 }
 
 const NAV_ITEMS = [
-  { href: '/cc-callback', label: 'CC Call Back', icon: '☎️' },
-  { href: '/callback', label: 'Laporan APKT', icon: '📤' },
-  { href: '/dashboard', label: 'Dashboard', icon: '📺' },
-  { href: '/piket', label: 'Piket', icon: '📅' },
-  { href: '/laporan', label: 'Rekap', icon: '📊' },
-  { href: '/apkt', label: 'APKT', icon: '🔗' },
-  { href: '/settings', label: 'Pengaturan', icon: '⚙️' },
+  { href: '/cc-callback', label: 'CC Call Back',   icon: '☎️' },
+  { href: '/callback',    label: 'Laporan APKT',   icon: '📤' },
+  { href: '/dashboard',   label: 'Dashboard',       icon: '📺' },
+  { href: '/piket',       label: 'Piket',           icon: '📅' },
+  { href: '/laporan',     label: 'Rekap',           icon: '📊' },
+  { href: '/apkt',        label: 'APKT',            icon: '🔗' },
+  { href: '/settings',    label: 'Pengaturan',      icon: '⚙️' },
 ]
 
 export function Navbar({ profile }: NavbarProps) {
@@ -48,37 +49,100 @@ export function Navbar({ profile }: NavbarProps) {
   }
 
   return (
-    <nav className="flex items-center justify-between px-4 h-12 border-b-2 border-neo-black bg-pln-blue shrink-0">
-      {/* Brand + ULP switcher */}
-      <div className="flex items-center gap-2">
-        <span className="text-lg">⚡</span>
+    <nav
+      className="shrink-0 glass"
+      style={{
+        height: 52,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingLeft: 16,
+        paddingRight: 16,
+        gap: 12,
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+      }}
+    >
+      {/* Brand + ULP */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexShrink: 0 }}>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #003B8E 0%, #0070C0 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 14,
+            flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(0,112,192,0.4)',
+          }}
+        >
+          ⚡
+        </div>
         {profile.ulps.length > 1 ? (
-          <div className="flex items-center gap-1.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {switchingUlp && (
-              <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  height: 12,
+                  border: '2px solid var(--accent)',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                }}
+              />
             )}
             <select
               value={profile.activeUlp.id}
               onChange={(e) => handleSwitchUlp(e.target.value)}
               disabled={switchingUlp}
-              className="bg-transparent text-white font-black text-sm border border-white/30 rounded px-1 py-0.5 cursor-pointer disabled:opacity-60"
+              className="input"
+              style={{
+                width: 'auto',
+                padding: '3px 8px',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                maxWidth: 180,
+              }}
             >
               {profile.ulps.map((ulp) => (
-                <option key={ulp.id} value={ulp.id} className="text-neo-black bg-white">
-                  {ulp.nama}
-                </option>
+                <option key={ulp.id} value={ulp.id}>{ulp.nama}</option>
               ))}
             </select>
           </div>
         ) : (
-          <span className="text-white font-black text-sm tracking-wide hidden sm:block">
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.01em',
+            }}
+            className="hidden sm:block"
+          >
             {profile.activeUlp.nama}
           </span>
         )}
       </div>
 
-      {/* Nav links */}
-      <div className="flex items-center gap-0">
+      {/* Nav Links */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
+          flexShrink: 1,
+          minWidth: 0,
+        }}
+      >
         {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href)
           return (
@@ -86,33 +150,72 @@ export function Navbar({ profile }: NavbarProps) {
               key={item.href}
               href={item.href}
               prefetch={true}
-              className={cn(
-                'flex items-center gap-1.5 px-3 h-12 text-sm font-bold transition-colors border-r border-white/10 last:border-r-0',
-                active
-                  ? 'bg-pln-yellow text-neo-black'
-                  : 'text-white hover:bg-white/10',
-              )}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 10px',
+                borderRadius: 7,
+                fontSize: 13,
+                fontWeight: active ? 600 : 500,
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                backgroundColor: active ? 'var(--accent-subtle)' : 'transparent',
+                textDecoration: 'none',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => {
+                if (!active) {
+                  const el = e.currentTarget
+                  el.style.backgroundColor = 'var(--bg-surface-2)'
+                  el.style.color = 'var(--text-primary)'
+                }
+              }}
+              onMouseLeave={e => {
+                if (!active) {
+                  const el = e.currentTarget
+                  el.style.backgroundColor = 'transparent'
+                  el.style.color = 'var(--text-secondary)'
+                }
+              }}
             >
-              <span className="text-base">{item.icon}</span>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>{item.icon}</span>
               <span className="hidden md:block">{item.label}</span>
             </Link>
           )
         })}
       </div>
 
-      {/* User info + logout */}
-      <div className="flex items-center gap-2">
-        <div className="text-right hidden sm:block">
-          <p className="text-white text-xs font-bold leading-none">{profile.nama}</p>
-          <p className="text-blue-200 text-xs font-medium">{profile.role.toUpperCase()}</p>
+      {/* Right: Theme toggle + User + Logout */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <ThemeToggle />
+        <div className="hidden sm:block" style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+            {profile.nama}
+          </p>
+          <p style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            {profile.role}
+          </p>
         </div>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="neo-button bg-pln-red text-white px-3 py-1 text-xs border-white! flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="btn btn-danger btn-sm"
+          style={{ gap: 5 }}
         >
           {loggingOut && (
-            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span
+              style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                border: '1.5px solid white',
+                borderTopColor: 'transparent',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
           )}
           {loggingOut ? 'Keluar...' : 'Keluar'}
         </button>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
+import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,21 +31,24 @@ export default function RootLayout({
     <html
       lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
       <body className="h-full antialiased" suppressHydrationWarning>
-        <NextTopLoader
-          color="#FFD200"
-          initialPosition={0.08}
-          crawlSpeed={200}
-          height={3}
-          crawl
-          showSpinner={false}
-          easing="ease"
-          speed={200}
-          shadow="0 0 10px #FFD200,0 0 5px #FFD200"
-          zIndex={9999}
-        />
-        {children}
+        <ThemeProvider>
+          <NextTopLoader
+            color="#0070C0"
+            initialPosition={0.08}
+            crawlSpeed={200}
+            height={2}
+            crawl
+            showSpinner={false}
+            easing="ease"
+            speed={200}
+            shadow="0 0 8px #0070C0,0 0 4px #3B9EFF"
+            zIndex={9999}
+          />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
