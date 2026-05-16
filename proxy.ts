@@ -66,5 +66,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
+  // Skip middleware untuk static assets (_next, api, dan file dengan ekstensi seperti .png .ico .js .css)
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/|.*\\..+).*)"],
 };
