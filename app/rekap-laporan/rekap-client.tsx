@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { STATUS_COLOR, STATUS_LABEL } from '@/constants'
 import type { StatusLaporan } from '@/types'
 
 type StatusCount = Record<StatusLaporan, number>
@@ -33,161 +32,297 @@ export interface RekapData {
   }
 }
 
-function StatusPills({ stats, total }: { stats: StatusCount, total: number }) {
-  if (total === 0) return <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 border border-gray-300">NIHIL</span>
-  
-  const order: StatusLaporan[] = ['lapor', 'ditangani', 'nyala_sementara', 'selesai']
+const STATUS_CONFIG: Record<StatusLaporan, { label: string; color: string; bg: string; icon: string }> = {
+  lapor:           { label: 'Lapor',           color: '#92400E', bg: '#FEF3C7', icon: '📋' },
+  ditangani:       { label: 'Ditangani',       color: '#1E40AF', bg: '#DBEAFE', icon: '🔧' },
+  nyala_sementara: { label: 'Nyala Sementara', color: '#7C3AED', bg: '#EDE9FE', icon: '💡' },
+  selesai:         { label: 'Selesai',         color: '#065F46', bg: '#D1FAE5', icon: '✅' },
+}
+
+const STATUS_ORDER: StatusLaporan[] = ['lapor', 'ditangani', 'nyala_sementara', 'selesai']
+
+function StatBadge({ status, count }: { status: StatusLaporan; count: number }) {
+  const cfg = STATUS_CONFIG[status]
   return (
-    <div className="flex flex-wrap gap-1">
-      {order.map(s => stats[s] > 0 && (
-        <span 
-          key={s} 
-          className="px-1.5 py-0.5 text-[10px] font-black border border-neo-black whitespace-nowrap"
-          style={{ backgroundColor: STATUS_COLOR[s].bg, color: STATUS_COLOR[s].text }}
-        >
-          {stats[s]} {STATUS_LABEL[s].split(' ')[0]}
-        </span>
-      ))}
-      <span className="px-1.5 py-0.5 text-[10px] font-black bg-neo-black text-white border border-neo-black">
-        {total} Tot
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '8px 12px', borderRadius: 10, backgroundColor: cfg.bg,
+      border: `1.5px solid ${cfg.color}22`, minWidth: 64, flex: 1,
+    }}>
+      <span style={{ fontSize: 22, fontWeight: 800, color: cfg.color, lineHeight: 1 }}>{count}</span>
+      <span style={{ fontSize: 9, fontWeight: 700, color: cfg.color, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3, textAlign: 'center' }}>
+        {cfg.icon} {cfg.label}
       </span>
     </div>
   )
 }
 
-function ProgressBar({ stats, total }: { stats: StatusCount, total: number }) {
-  if (total === 0) return <div className="h-1.5 w-full bg-gray-200" />
-  const order: StatusLaporan[] = ['lapor', 'ditangani', 'nyala_sementara', 'selesai']
-  
+function MiniBar({ stats, total }: { stats: StatusCount; total: number }) {
+  if (total === 0) return <div style={{ height: 4, backgroundColor: '#E5E7EB', borderRadius: 2 }} />
   return (
-    <div className="flex h-1.5 w-full bg-gray-200 overflow-hidden">
-      {order.map(s => stats[s] > 0 && (
-        <div 
-          key={s} 
-          style={{ 
-            width: `${(stats[s] / total) * 100}%`,
-            backgroundColor: STATUS_COLOR[s].bg 
-          }}
-        />
+    <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: '#E5E7EB' }}>
+      {STATUS_ORDER.map(s => stats[s] > 0 && (
+        <div key={s} style={{
+          width: `${(stats[s] / total) * 100}%`,
+          backgroundColor: STATUS_CONFIG[s].color,
+        }} />
       ))}
     </div>
   )
 }
 
-export function RekapClient({ data }: { data: RekapData }) {
-  // Semua ULP terbuka secara default di mobile mungkin terlalu panjang, kita track state expand-nya
-  const [expandedUlp, setExpandedUlp] = useState<Record<string, boolean>>(
-    // Buka semua secara default
-    data.ulps.reduce((acc, ulp) => ({ ...acc, [ulp.id]: true }), {})
+function StatusChips({ stats, total }: { stats: StatusCount; total: number }) {
+  if (total === 0) {
+    return (
+      <span style={{
+        fontSize: 10, fontWeight: 700, color: '#6B7280',
+        backgroundColor: '#F3F4F6', borderRadius: 6, padding: '2px 8px',
+        border: '1px solid #E5E7EB', textTransform: 'uppercase', letterSpacing: '0.05em',
+      }}>NIHIL</span>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+      {STATUS_ORDER.map(s => stats[s] > 0 && (
+        <span key={s} style={{
+          fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px',
+          backgroundColor: STATUS_CONFIG[s].bg, color: STATUS_CONFIG[s].color,
+          border: `1px solid ${STATUS_CONFIG[s].color}44`,
+        }}>
+          {stats[s]} {STATUS_CONFIG[s].label}
+        </span>
+      ))}
+      <span style={{
+        fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '2px 8px',
+        backgroundColor: '#1F2937', color: '#fff',
+      }}>{total} Total</span>
+    </div>
   )
+}
 
+export function RekapClient({ data }: { data: RekapData }) {
+  const [expandedUlp, setExpandedUlp] = useState<Record<string, boolean>>(
+    data.ulps.reduce((acc, ulp) => ({ ...acc, [ulp.id]: ulp.total > 0 }), {})
+  )
   const toggleUlp = (id: string) => setExpandedUlp(prev => ({ ...prev, [id]: !prev[id] }))
 
+  const hasActive = data.total.lapor + data.total.ditangani + data.total.nyala_sementara > 0
+
   return (
-    <div className="min-h-screen bg-[#F0F4F8] flex flex-col font-sans">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-20 border-b-4 border-neo-black bg-pln-yellow shadow-neo-sm">
-        <div className="px-4 py-3">
-          <div className="flex justify-between items-center mb-2">
-            <h1 className="text-xl font-black text-neo-black uppercase tracking-widest">⚡ Rekap Harian</h1>
-            <span className="text-xs font-bold bg-neo-white border-2 border-neo-black px-2 py-1">
-              {data.tanggal}
-            </span>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F1F5F9', fontFamily: "'Inter', sans-serif", display: 'flex', flexDirection: 'column' }}>
+
+      {/* Header */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 20,
+        background: 'linear-gradient(135deg, #003B8E 0%, #0055B3 100%)',
+        boxShadow: '0 4px 20px rgba(0,59,142,0.3)',
+      }}>
+        <div style={{ padding: '16px 16px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>⚡</span>
+                <h1 style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', margin: 0 }}>
+                  Rekap Gangguan
+                </h1>
+              </div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', margin: '2px 0 0', fontWeight: 500 }}>
+                PLN — Monitoring APKT
+              </p>
+            </div>
+            <div style={{
+              backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8,
+              padding: '6px 12px', textAlign: 'center',
+            }}>
+              <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tanggal</p>
+              <p style={{ fontSize: 13, color: '#fff', margin: 0, fontWeight: 800 }}>{data.tanggal}</p>
+            </div>
           </div>
-          
-          {/* Global Summary */}
-          <div className="bg-neo-white border-2 border-neo-black p-3 mt-2 shadow-sm">
-            <p className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">TOTAL GANGGUAN HARI INI</p>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {(['lapor', 'ditangani', 'nyala_sementara', 'selesai'] as StatusLaporan[]).map(s => (
-                <div key={s} className="flex-1 min-w-[70px]">
-                  <div 
-                    className="border-2 border-neo-black px-2 py-1.5 text-center flex flex-col items-center justify-center"
-                    style={{ backgroundColor: STATUS_COLOR[s].bg }}
-                  >
-                    <span className="text-xl font-black" style={{ color: STATUS_COLOR[s].text }}>{data.total[s]}</span>
-                    <span className="text-[9px] font-bold uppercase truncate w-full text-center" style={{ color: STATUS_COLOR[s].text }}>
-                      {STATUS_LABEL[s]}
-                    </span>
-                  </div>
-                </div>
+
+          {/* Keterangan data */}
+          <div style={{
+            backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8,
+            padding: '8px 12px', marginBottom: 12, display: 'flex', gap: 16, flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#FCD34D', flexShrink: 0, display: 'block' }} />
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                Lapor / Ditangani / Nyala Sementara — Semua Waktu
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#34D399', flexShrink: 0, display: 'block' }} />
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                Selesai — Hari Ini Saja
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stat Boxes */}
+        <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8 }}>
+          {STATUS_ORDER.map(s => (
+            <StatBadge key={s} status={s} count={data.total[s]} />
+          ))}
+        </div>
+
+        {/* Total bar */}
+        <div style={{
+          backgroundColor: 'rgba(0,0,0,0.25)', padding: '10px 16px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Total Gangguan
+          </span>
+          <span style={{ fontSize: 18, fontWeight: 900, color: '#FCD34D' }}>{data.totalLaporan}</span>
+        </div>
+
+        {/* Callback Row */}
+        {data.callback.total > 0 && (
+          <div style={{
+            backgroundColor: '#1D4ED8', padding: '10px 16px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+          }}>
+            <div>
+              <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+                CC Call Back Hari Ini
+              </p>
+              <p style={{ fontSize: 16, fontWeight: 900, color: '#fff', margin: 0 }}>{data.callback.total} Laporan</p>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(data.callback.statusCount).map(([k, v]) => (
+                <span key={k} style={{
+                  fontSize: 10, fontWeight: 700, backgroundColor: 'rgba(255,255,255,0.15)',
+                  color: '#fff', padding: '3px 10px', borderRadius: 20,
+                  border: '1px solid rgba(255,255,255,0.3)',
+                }}>
+                  {v} {k}
+                </span>
               ))}
             </div>
-            <div className="mt-2 text-center bg-neo-black text-white py-1 text-sm font-black uppercase tracking-widest">
-              TOTAL KESELURUHAN: {data.totalLaporan}
-            </div>
           </div>
-
-          {/* Callback Summary */}
-          {data.callback.total > 0 && (
-            <div className="bg-pln-blue text-white border-2 border-neo-black p-3 mt-2 shadow-sm flex flex-col items-center">
-              <p className="text-[10px] font-black text-blue-200 uppercase tracking-wider mb-1">TOTAL CC CALL BACK HARI INI</p>
-              <span className="text-3xl font-black">{data.callback.total}</span>
-              <div className="flex gap-2 mt-1 w-full justify-center">
-                {Object.entries(data.callback.statusCount).map(([k, v]) => (
-                  <span key={k} className="text-[10px] font-bold bg-white text-pln-blue px-2 py-0.5 uppercase border border-neo-black">
-                    {v} {k}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
+      {/* Alert: ada gangguan aktif */}
+      {hasActive && (
+        <div style={{
+          margin: '12px 16px 0',
+          backgroundColor: '#FEF3C7', border: '1.5px solid #F59E0B',
+          borderRadius: 10, padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 18 }}>⚠️</span>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#92400E', margin: 0 }}>Ada Gangguan Belum Selesai</p>
+            <p style={{ fontSize: 11, color: '#B45309', margin: '2px 0 0' }}>
+              {data.total.lapor + data.total.ditangani + data.total.nyala_sementara} gangguan masih dalam proses penanganan
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ULP List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
+      <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 32 }}>
         {data.ulps.length === 0 ? (
-          <div className="text-center py-10 opacity-50 font-bold">Belum ada ULP.</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#9CA3AF', fontWeight: 600 }}>
+            Belum ada data ULP.
+          </div>
         ) : (
-          data.ulps.map((ulp) => {
+          data.ulps.map(ulp => {
             const isExpanded = expandedUlp[ulp.id]
-            const isZero = ulp.total === 0
+            const isNihil = ulp.total === 0
+            const hasUrgent = ulp.stats.lapor + ulp.stats.ditangani + ulp.stats.nyala_sementara > 0
 
             return (
-              <div key={ulp.id} className="border-4 border-neo-black bg-neo-white shadow-neo">
-                {/* ULP Header - Click to toggle */}
-                <button 
+              <div key={ulp.id} style={{
+                backgroundColor: '#fff', borderRadius: 14,
+                overflow: 'hidden',
+                boxShadow: hasUrgent
+                  ? '0 0 0 2px #F59E0B, 0 4px 16px rgba(0,0,0,0.08)'
+                  : '0 2px 12px rgba(0,0,0,0.06)',
+              }}>
+                {/* ULP Header */}
+                <button
                   onClick={() => toggleUlp(ulp.id)}
-                  className="w-full text-left px-4 py-3 flex items-center justify-between bg-pln-blue text-white active:bg-blue-800 transition-colors"
+                  style={{
+                    width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px', gap: 12,
+                    background: isNihil
+                      ? 'linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%)'
+                      : 'linear-gradient(135deg, #003B8E 0%, #0055B3 100%)',
+                  }}
                 >
-                  <div>
-                    <h2 className="text-base font-black uppercase tracking-wider">{ulp.nama}</h2>
-                    <div className="mt-1 opacity-90">
-                      {isZero ? (
-                        <span className="text-[10px] font-bold bg-white text-pln-blue px-2 py-0.5 rounded-full">NIHIL</span>
-                      ) : (
-                        <div className="text-[10px] font-bold">
-                          Selesai: {ulp.stats.selesai} / {ulp.total}
-                        </div>
-                      )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h2 style={{
+                      fontSize: 15, fontWeight: 800, margin: 0,
+                      color: isNihil ? '#374151' : '#fff',
+                      textTransform: 'uppercase', letterSpacing: '0.03em',
+                    }}>
+                      {ulp.nama}
+                    </h2>
+                    <div style={{ marginTop: 6 }}>
+                      <StatusChips stats={ulp.stats} total={ulp.total} />
                     </div>
                   </div>
-                  <span className="text-xl font-black">{isExpanded ? '−' : '+'}</span>
+                  <span style={{
+                    fontSize: 18, fontWeight: 800,
+                    color: isNihil ? '#9CA3AF' : 'rgba(255,255,255,0.8)',
+                    flexShrink: 0,
+                  }}>
+                    {isExpanded ? '−' : '+'}
+                  </span>
                 </button>
-                
-                {/* Progress bar ULP */}
-                <ProgressBar stats={ulp.stats} total={ulp.total} />
 
-                {/* ULP Content (Regus) */}
+                {/* Progress bar */}
+                <MiniBar stats={ulp.stats} total={ulp.total} />
+
+                {/* Regu list */}
                 {isExpanded && (
-                  <div className="p-3 bg-[#FAFAFA] space-y-3">
+                  <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, backgroundColor: '#FAFAFA' }}>
                     {ulp.regus.length === 0 ? (
-                      <p className="text-xs text-center text-gray-400 font-bold py-2">Tidak ada regu terdaftar.</p>
+                      <p style={{ fontSize: 12, textAlign: 'center', color: '#9CA3AF', fontWeight: 600, padding: '8px 0' }}>
+                        Tidak ada regu terdaftar.
+                      </p>
                     ) : (
-                      ulp.regus.map((regu) => (
-                        <div key={regu.id} className="border-2 border-neo-black bg-neo-white p-2">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-black text-sm uppercase text-neo-black">{regu.nama}</h3>
-                            <StatusPills stats={regu.stats} total={regu.total} />
-                          </div>
-                          
-                          {/* Petugas List */}
-                          <div className="bg-pln-yellow/20 border border-pln-yellow p-1.5 mt-1">
-                            <span className="text-[9px] font-black uppercase text-pln-orange mb-0.5 block">👷 Petugas Piket:</span>
-                            <p className="text-[11px] font-medium text-neo-black leading-tight">
-                              {regu.petugas.length > 0 ? regu.petugas.join(' • ') : <span className="text-gray-400 italic">Tidak ada petugas terdata di piket hari ini</span>}
-                            </p>
+                      ulp.regus.map(regu => (
+                        <div key={regu.id} style={{
+                          backgroundColor: '#fff', borderRadius: 10, overflow: 'hidden',
+                          border: regu.stats.lapor + regu.stats.ditangani + regu.stats.nyala_sementara > 0
+                            ? '1.5px solid #F59E0B'
+                            : '1.5px solid #E5E7EB',
+                        }}>
+                          <div style={{ padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                              <h3 style={{ fontSize: 13, fontWeight: 800, color: '#111827', margin: 0, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                                {regu.nama}
+                              </h3>
+                              <StatusChips stats={regu.stats} total={regu.total} />
+                            </div>
+
+                            {/* Progress mini */}
+                            <MiniBar stats={regu.stats} total={regu.total} />
+
+                            {/* Petugas */}
+                            <div style={{
+                              marginTop: 8, padding: '6px 10px', borderRadius: 7,
+                              backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+                              display: 'flex', alignItems: 'flex-start', gap: 6,
+                            }}>
+                              <span style={{ fontSize: 12, flexShrink: 0 }}>👷</span>
+                              <div>
+                                <p style={{ fontSize: 9, fontWeight: 700, color: '#92400E', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                  Petugas Piket Aktif
+                                </p>
+                                <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: 0, lineHeight: 1.4 }}>
+                                  {regu.petugas.length > 0
+                                    ? regu.petugas.join(' · ')
+                                    : <span style={{ color: '#9CA3AF', fontStyle: 'italic', fontWeight: 400 }}>Tidak ada petugas terdata</span>
+                                  }
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -200,8 +335,11 @@ export function RekapClient({ data }: { data: RekapData }) {
         )}
       </div>
 
-      <div className="text-center p-4 bg-neo-gray/50 border-t-2 border-neo-black shrink-0">
-        <p className="text-[10px] font-black text-gray-500">APKT MONITORING · PLN</p>
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '12px 16px', backgroundColor: '#F8FAFC', borderTop: '1px solid #E2E8F0' }}>
+        <p style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          APKT Monitoring · PLN
+        </p>
       </div>
     </div>
   )

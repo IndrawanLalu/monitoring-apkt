@@ -28,12 +28,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   if (!existing) return NextResponse.json({ data: null, error: 'Laporan tidak ditemukan' }, { status: 404 })
 
+  // Cari piket aktif saat ini untuk dicatat sebagai resolved_piket_id
+  let resolved_piket_id: string | null = null
+  if (parsed.data.status === 'selesai') {
+    const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
+    const today = nowWita.toISOString().split('T')[0]
+    const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
+
+    const { data: todayPikets } = await admin
+      .from('piket')
+      .select('id, shift_type:shift_type(jam_mulai, jam_selesai)')
+      .eq('ulp_id', existing.ulp_id)
+      .eq('tanggal', today)
+
+    const activePiket = (todayPikets ?? []).find(p => {
+      const st = p.shift_type as unknown as { jam_mulai: string; jam_selesai: string }
+      const [mh, mm] = st.jam_mulai.split(':').map(Number)
+      const [sh, sm] = st.jam_selesai.split(':').map(Number)
+      const mulai = mh * 60 + (mm ?? 0)
+      const selesai = sh * 60 + (sm ?? 0)
+      return selesai > mulai ? nowM >= mulai && nowM < selesai : nowM >= mulai || nowM < selesai
+    })
+
+    resolved_piket_id = activePiket?.id ?? null
+  }
+
   const { data: laporan, error } = await admin
     .from('laporan')
     .update({
       status: parsed.data.status,
       keterangan: parsed.data.keterangan !== undefined ? parsed.data.keterangan : existing.keterangan,
       resolved_at: parsed.data.status === 'selesai' ? new Date().toISOString() : null,
+      resolved_piket_id: parsed.data.status === 'selesai' ? resolved_piket_id : null,
     })
     .eq('id', id)
     .select('*')

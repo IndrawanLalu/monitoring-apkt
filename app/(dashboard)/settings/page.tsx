@@ -56,6 +56,7 @@ export default async function SettingsPage() {
 
   return (
     <SettingsClient
+      key={ulpId}
       profile={{ ulp_id: ulpId, role: profile.role, ulp: profile.activeUlp, userId: profile.id, ulps: profile.ulps } as never}
       reguList={reguList ?? []}
       petugasList={petugasList ?? []}

@@ -139,7 +139,7 @@ create table if not exists riwayat_status (
 
 create table if not exists wa_session (
   id           uuid primary key default uuid_generate_v4(),
-  ulp_id       uuid not null references ulp(id) on delete cascade unique,
+  user_id      uuid not null references auth.users(id) on delete cascade unique,
   status       wa_status not null default 'disconnected',
   session_data jsonb,
   updated_at   timestamptz not null default now()
@@ -258,10 +258,10 @@ create policy "riwayat_insert" on riwayat_status for insert
   );
 
 create policy "wa_session_select" on wa_session for select
-  using (ulp_id = get_my_ulp_id() or get_my_role() = 'admin');
+  using (user_id = auth.uid() or get_my_role() = 'admin');
 
 create policy "wa_session_manage" on wa_session for all
-  using (ulp_id = get_my_ulp_id() and get_my_role() in ('admin', 'supervisor'));
+  using (user_id = auth.uid() and get_my_role() in ('admin', 'supervisor'));
 
 create policy "profiles_select" on profiles for select
   using (id = auth.uid() or get_my_role() = 'admin' or ulp_id = get_my_ulp_id());

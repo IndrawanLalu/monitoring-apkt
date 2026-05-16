@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/dashboard',   label: 'Dashboard',       icon: '📺' },
   { href: '/piket',       label: 'Piket',           icon: '📅' },
   { href: '/laporan',     label: 'Rekap',           icon: '📊' },
+  { href: '/outage',      label: 'Outage',          icon: '⚡' },
   { href: '/apkt',        label: 'APKT',            icon: '🔗' },
   { href: '/settings',    label: 'Pengaturan',      icon: '⚙️' },
 ]
@@ -149,7 +150,7 @@ export function Navbar({ profile }: NavbarProps) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={true}
+              prefetch={false}
               style={{
                 display: 'flex',
                 alignItems: 'center',

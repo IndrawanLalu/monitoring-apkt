@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { Regu, Petugas, WaSessionStatus } from "@/types";
 import { WaTab } from "./wa-tab";
 import { ReguTab } from "./regu-tab";
@@ -45,6 +45,13 @@ export function SettingsClient({
   const [petugasList, setPetugasList] = useState<Petugas[]>(initialPetugas);
   const [waGrupId, setWaGrupId]   = useState(profile.ulp.wa_grup_id ?? "");
   const [toast, setToast]         = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+
+  useEffect(() => {
+    setReguList(initialRegu);
+    setPetugasList(initialPetugas);
+    setWaSession(initialWa);
+    setWaGrupId(profile.ulp.wa_grup_id ?? "");
+  }, [initialRegu, initialPetugas, initialWa, profile.ulp.wa_grup_id]);
 
   const showToast = useCallback((text: string, type: "success" | "error" | "info" = "info") => {
     setToast({ text, type });

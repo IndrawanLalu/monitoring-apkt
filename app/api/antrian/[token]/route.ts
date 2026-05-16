@@ -10,7 +10,7 @@ export async function GET(
 
   const { data: laporan } = await admin
     .from('laporan')
-    .select('id, nomor_tiket, regu_id, status')
+    .select('id, nomor_tiket, nama_pelanggan, lokasi, regu_id, status')
     .eq('magic_token', token)
     .single()
 
@@ -20,7 +20,8 @@ export async function GET(
 
   const reguId = laporan.regu_id as string
 
-  const [{ data: reguData }, { data: antrian }] = await Promise.all([
+  // Cek apakah survey sudah diisi
+  const [{ data: reguData }, { data: antrian }, { data: surveyData }] = await Promise.all([
     admin
       .from('regu')
       .select('id, nama, ulp(id, nama)')
@@ -32,6 +33,11 @@ export async function GET(
       .eq('regu_id', reguId)
       .neq('status', 'selesai')
       .order('created_at', { ascending: true }),
+    admin
+      .from('survey_laporan')
+      .select('id')
+      .eq('laporan_id', laporan.id)
+      .maybeSingle(),
   ])
 
   const regu = reguData as unknown as { id: string; nama: string; ulp: { id: string; nama: string } | null } | null
@@ -39,6 +45,8 @@ export async function GET(
   const ulpNama = (regu?.ulp as { nama: string } | null)?.nama ?? '—'
 
   const isSelesai = laporan.status === 'selesai'
+  const surveyDone = !!surveyData
+
   const queue = (antrian ?? []).map((item, idx) => ({
     position: idx + 1,
     isOwn: (item.id as string) === (laporan.id as string),
@@ -53,7 +61,10 @@ export async function GET(
     ulpNama,
     myStatus: laporan.status as string,
     myNomor: laporan.nomor_tiket as string,
+    namaPelanggan: laporan.nama_pelanggan as string,
+    alamat: laporan.lokasi as string,
     isSelesai,
+    surveyDone,
     myPosition: isSelesai ? 0 : myPosition,
     totalAntrian: isSelesai ? 0 : queue.length,
     queue: isSelesai ? [] : queue,

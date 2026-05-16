@@ -24,7 +24,7 @@ export function PiketGuard({ shifts }: { shifts: Array<{ jam_mulai: string, jam_
 
   useEffect(() => {
     if (!isClient) return
-    if (pathname === '/piket' || pathname === '/settings') return
+    if (pathname === '/piket' || pathname === '/settings' || pathname === '/outage') return
 
     const checkActive = () => {
       const nowUtc = new Date()
