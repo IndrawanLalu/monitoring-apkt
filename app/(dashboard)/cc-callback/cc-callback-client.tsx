@@ -9,7 +9,6 @@ interface Props {
   ulpId: string
 }
 
-// We don't need the full Zod schema or db insert anymore since it's just for WA templates
 interface FormValues {
   nomor_tiket: string
   nama_pelanggan: string
@@ -43,8 +42,6 @@ Salam hangat,
 Command Center UP3 Mataram
 Melayani Sepenuh Hati`
 
-// ── APKT paste parser ─────────────────────────────────────────────────────────
-
 function parseApktDurasi(durasi: string): number {
   const match = durasi.trim().match(/^(\d+)\s*-\s*(\d{2}):(\d{2}):(\d{2})$/)
   if (!match) return 0
@@ -77,8 +74,6 @@ function parseApkt(text: string): Partial<FormValues> {
   return result
 }
 
-// ── WA helpers ────────────────────────────────────────────────────────────────
-
 function formatNomorWa(nomor: string): string {
   const clean = nomor.replace(/\D/g, '')
   if (clean.startsWith('62')) return clean
@@ -94,28 +89,55 @@ function applyTemplate(tpl: string, v: { nama: string; nomor_tiket: string; ulp:
     .replace(/\{link_antrian\}/g, v.link_antrian || '')
 }
 
-// ── Preview WA ────────────────────────────────────────────────────────────────
+// ── WA Preview ─────────────────────────────────────────────────────────────────
 
-function WaPreview({ pesan, nomorHp, kondisi, onKondisiChange }: { pesan: string; nomorHp: string; kondisi: 'nyala' | 'padam_meluas'; onKondisiChange: (k: 'nyala' | 'padam_meluas') => void }) {
+function WaPreview({ pesan, nomorHp, kondisi, onKondisiChange }: {
+  pesan: string
+  nomorHp: string
+  kondisi: 'nyala' | 'padam_meluas'
+  onKondisiChange: (k: 'nyala' | 'padam_meluas') => void
+}) {
   const nomorWa = formatNomorWa(nomorHp)
   const valid = nomorWa.length >= 10
+
   return (
-    <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="text-base">📱</span>
-        <h2 className="font-black text-sm text-neo-black uppercase tracking-wide">Preview Pesan WA</h2>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 16 }}>📱</span>
+        <h2 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Preview Pesan WA
+        </h2>
       </div>
-      <div className="flex-1 bg-[#ECE5DD] border-2 border-neo-black p-3 overflow-y-auto min-h-0">
-        <div className="flex justify-end">
-          <div className="bg-[#DCF8C6] border border-[#b2dfb2] rounded-tl-xl rounded-bl-xl rounded-br-xl px-3 py-2 max-w-[90%] shadow-sm">
-            <p className="text-xs text-neo-black whitespace-pre-wrap leading-relaxed">
+
+      {/* Chat bubble area — WhatsApp themed but adaptive */}
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: 'auto',
+        padding: 12,
+        borderRadius: 10,
+        border: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-surface-2)',
+        backgroundImage: 'radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0)',
+        backgroundSize: '20px 20px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{
+            backgroundColor: '#25D366',
+            borderRadius: '12px 2px 12px 12px',
+            padding: '10px 14px',
+            maxWidth: '90%',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          }}>
+            <p style={{ fontSize: 12, color: '#fff', whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>
               {pesan.split('\n').map((line, i, arr) => {
                 const parts = line.split(/(\*[^*]+\*)/g)
                 return (
                   <span key={i}>
                     {parts.map((p, j) =>
                       p.startsWith('*') && p.endsWith('*')
-                        ? <strong key={j}>{p.slice(1, -1)}</strong>
+                        ? <strong key={j} style={{ fontWeight: 700 }}>{p.slice(1, -1)}</strong>
                         : <span key={j}>{p}</span>
                     )}
                     {i < arr.length - 1 && <br />}
@@ -123,31 +145,47 @@ function WaPreview({ pesan, nomorHp, kondisi, onKondisiChange }: { pesan: string
                 )
               })}
             </p>
-            <p className="text-[10px] text-gray-400 text-right mt-1">
-              {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textAlign: 'right', marginTop: 4, marginBottom: 0 }}>
+              {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} ✓✓
             </p>
           </div>
         </div>
       </div>
-      <div className="shrink-0 space-y-4 pt-2">
-        <div className="flex flex-col gap-1.5 p-3 border-2 border-neo-black bg-neo-white">
-          <label className="text-xs font-bold text-neo-black uppercase tracking-wide">Pilih Format Info</label>
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input type="radio" checked={kondisi === 'nyala'} onChange={() => onKondisiChange('nyala')} className="accent-pln-blue scale-125" />
-              <span className="font-medium text-neo-black">Nyala</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <input type="radio" checked={kondisi === 'padam_meluas'} onChange={() => onKondisiChange('padam_meluas')} className="accent-pln-blue scale-125" />
-              <span className="font-medium text-neo-black">Padam Meluas</span>
-            </label>
-          </div>
-        </div>
 
-        <div className="space-y-1">
-          <p className="text-xs text-gray-500 font-medium">
+      {/* Kondisi selector */}
+      <div style={{
+        flexShrink: 0,
+        padding: '10px 14px',
+        borderRadius: 10,
+        border: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-surface)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
+        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Format Info
+        </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {([
+            { val: 'nyala',        label: '✅ Nyala'        },
+            { val: 'padam_meluas', label: '🔴 Padam Meluas' },
+          ] as const).map(({ val, label }) => (
+            <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+              <input
+                type="radio"
+                checked={kondisi === val}
+                onChange={() => onKondisiChange(val)}
+                style={{ accentColor: 'var(--accent)', width: 15, height: 15, flexShrink: 0 }}
+              />
+              <span style={{ fontWeight: kondisi === val ? 600 : 400, color: 'var(--text-primary)' }}>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div style={{ paddingTop: 6, borderTop: '1px solid var(--border)' }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
             Kirim ke:{' '}
-            <span className={valid ? 'text-neo-black font-bold' : 'text-pln-red font-bold'}>
+            <span style={{ fontWeight: 700, color: valid ? 'var(--text-primary)' : '#E4002B' }}>
               {valid ? `+${nomorWa}` : 'Nomor belum diisi'}
             </span>
           </p>
@@ -157,7 +195,84 @@ function WaPreview({ pesan, nomorHp, kondisi, onKondisiChange }: { pesan: string
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// ── Done Screen ────────────────────────────────────────────────────────────────
+
+function DoneCard({ v, mt, kondisi, ulpNama, onReset, onResend }: {
+  v: FormValues
+  mt: string
+  kondisi: 'nyala' | 'padam_meluas'
+  ulpNama: string
+  onReset: () => void
+  onResend: () => void
+}) {
+  const nomorWa = formatNomorWa(v.nomor_pelanggan ?? '')
+  const nomorValid = nomorWa.length >= 10
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  const linkAntrian = mt ? `${base}/antrian/${mt}` : ''
+
+  return (
+    <div style={{ width: '100%', maxWidth: 440, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Success card */}
+      <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: 20, boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <span style={{ fontSize: 32 }}>✅</span>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', margin: 0 }}>Siap Kirim Pesan</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '3px 0 0' }}>WhatsApp telah dibuka otomatis</p>
+          </div>
+        </div>
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {([
+            ['No. Tiket', v.nomor_tiket],
+            ['Pelanggan', v.nama_pelanggan],
+            ['No. HP', nomorValid ? `+${nomorWa}` : '—'],
+            ['Lokasi', v.lokasi],
+            ['Format Info', kondisi === 'nyala' ? 'Nyala' : 'Padam Meluas'],
+          ] as [string, string][]).map(([label, val]) => (
+            <div key={label} style={{ display: 'flex', gap: 8, fontSize: 13 }}>
+              <span style={{ fontWeight: 600, color: 'var(--text-secondary)', width: 90, flexShrink: 0 }}>{label}</span>
+              <span style={{ color: 'var(--text-primary)' }}>{val}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Link antrian */}
+      {linkAntrian && (
+        <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>🔢</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Link Antrian</p>
+            <p style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {linkAntrian}
+            </p>
+          </div>
+          <button
+            onClick={() => void navigator.clipboard.writeText(linkAntrian)}
+            className="btn btn-secondary btn-sm"
+          >
+            Salin
+          </button>
+        </div>
+      )}
+
+      {/* Actions */}
+      <button
+        onClick={onResend}
+        disabled={!nomorValid}
+        className="btn btn-primary"
+        style={{ width: '100%', backgroundColor: '#25D366', fontSize: 14, padding: '12px 0' }}
+      >
+        📲 Buka WhatsApp Lagi
+      </button>
+      <button onClick={onReset} className="btn btn-secondary" style={{ width: '100%', fontSize: 13, padding: '10px 0' }}>
+        + Input Pelanggan Baru
+      </button>
+    </div>
+  )
+}
+
+// ── Main ───────────────────────────────────────────────────────────────────────
 
 export function CcCallbackClient({ ulpNama, ulpId }: Props) {
   const [loading, setLoading] = useState(false)
@@ -190,35 +305,25 @@ export function CcCallbackClient({ ulpNama, ulpId }: Props) {
   const template = kondisi === 'nyala' ? TEMPLATE_NYALA : TEMPLATE_PADAM_MELUAS
 
   const pesanWa = useMemo(() =>
-    applyTemplate(template, {
-      nama: values.nama_pelanggan, nomor_tiket: values.nomor_tiket, ulp: ulpNama
-    }),
+    applyTemplate(template, { nama: values.nama_pelanggan, nomor_tiket: values.nomor_tiket, ulp: ulpNama }),
     [template, values.nama_pelanggan, values.nomor_tiket, ulpNama],
   )
 
   function bukaWa(v: FormValues, magicToken = '') {
     const nomor = formatNomorWa(v.nomor_pelanggan ?? '')
     if (!nomor || nomor.length < 10) return
-    const linkAntrian = magicToken ? `${process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || window.location.origin}/antrian/${magicToken}` : ''
-    const pesan = applyTemplate(template, {
-      nama: v.nama_pelanggan, nomor_tiket: v.nomor_tiket, ulp: ulpNama, link_antrian: linkAntrian
-    })
+    const linkAntrian = magicToken ? `${window.location.origin}/antrian/${magicToken}` : ''
+    const pesan = applyTemplate(template, { nama: v.nama_pelanggan, nomor_tiket: v.nomor_tiket, ulp: ulpNama, link_antrian: linkAntrian })
     window.open(`https://wa.me/${nomor}?text=${encodeURIComponent(pesan)}`, '_blank')
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
-    // Basic validation
     const errs: Partial<Record<keyof FormValues, string>> = {}
     if (!values.nomor_tiket) errs.nomor_tiket = 'Nomor tiket wajib diisi'
     if (!values.nama_pelanggan) errs.nama_pelanggan = 'Nama pelanggan wajib diisi'
     if (!values.nomor_pelanggan || values.nomor_pelanggan.length < 10) errs.nomor_pelanggan = 'Nomor HP tidak valid'
-    
-    if (Object.keys(errs).length > 0) {
-      setFieldErrors(errs)
-      return
-    }
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); return }
 
     setServerError(null)
     setLoading(true)
@@ -227,153 +332,108 @@ export function CcCallbackClient({ ulpNama, ulpId }: Props) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...values, ulp_id: ulpId, status_callback: kondisi === 'nyala' ? 'Nyala' : 'Padam Meluas' }),
     })
-    const json = await res.json() as { data: { id: string; nomor_tiket: string; status: string; magic_token: string } | null; error: string | null }
+    const json = await res.json() as { data: { id: string; magic_token: string } | null; error: string | null }
     setLoading(false)
     if (!res.ok || json.error) { setServerError(json.error ?? 'Gagal menyimpan sinkronisasi database'); return }
     const magicToken = json.data?.magic_token ?? ''
-
     setDone({ values, magicToken })
     bukaWa(values, magicToken)
   }
 
+  function handleReset() {
+    setValues({ nomor_tiket: '', nama_pelanggan: '', nomor_pelanggan: '', lokasi: '', keterangan: '', created_at: undefined, status: 'lapor' })
+    setPasteText(''); setShowPaste(true); setDone(null)
+  }
+
+  // ── Done Screen
   if (done) {
-    const { values: v, magicToken: mt } = done
-    const nomorWa = formatNomorWa(v.nomor_pelanggan ?? '')
-    const nomorValid = nomorWa.length >= 10
-    const base = process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '')
-    const linkAntrian = mt ? `${base}/antrian/${mt}` : ''
-    
     return (
-      <div className="h-full flex flex-col overflow-hidden">
-        <Header ulpNama={ulpNama} />
-        <div className="flex-1 overflow-y-auto flex items-center justify-center p-6">
-          <div className="w-full max-w-md space-y-4">
-            <div className="border-2 border-neo-black bg-neo-white shadow-neo p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-3xl">✅</span>
-                <div>
-                  <p className="font-black text-neo-black">Siap Kirim Pesan</p>
-                  <p className="text-xs text-gray-400">WhatsApp telah dibuka otomatis</p>
-                </div>
-              </div>
-              <div className="space-y-2 text-sm border-t-2 border-neo-black pt-4">
-                {[
-                  ['No. Tiket', v.nomor_tiket], ['Pelanggan', v.nama_pelanggan],
-                  ['No. HP', nomorValid ? `+${nomorWa}` : '—'], ['Lokasi', v.lokasi],
-                  ['Status Awal', v.status ?? 'lapor'],
-                  ['Format Info', kondisi === 'nyala' ? 'Nyala' : 'Padam Meluas'],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex gap-2">
-                    <span className="font-bold text-gray-500 w-24 shrink-0">{label}</span>
-                    <span className="font-medium">{val}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {linkAntrian && (
-              <div className="border-2 border-neo-black bg-pln-yellow/10 p-3 flex items-center gap-2">
-                <span className="text-lg shrink-0">🔢</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-gray-500">Link Antrian Pelanggan</p>
-                  <p className="text-xs font-mono text-neo-black truncate">{linkAntrian}</p>
-                </div>
-                <button
-                  onClick={() => void navigator.clipboard.writeText(linkAntrian)}
-                  className="shrink-0 text-xs font-bold border border-neo-black px-2 py-1 bg-neo-white hover:bg-neo-gray transition-colors"
-                >
-                  Salin
-                </button>
-              </div>
-            )}
-            
-            <button onClick={() => bukaWa(v, mt)} disabled={!nomorValid}
-              className="w-full py-3 font-black text-sm border-2 border-neo-black bg-[#25D366] text-white shadow-neo hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              📲 Buka WhatsApp Lagi
-            </button>
-            <button onClick={() => {
-              setValues({ nomor_tiket: '', nama_pelanggan: '', nomor_pelanggan: '', lokasi: '', keterangan: '', created_at: undefined, status: 'lapor' })
-              setPasteText(''); setShowPaste(true); setDone(null)
-            }} className="w-full py-2.5 font-bold text-sm border-2 border-neo-black bg-neo-white shadow-neo-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-neo transition-all">
-              + Input Pelanggan Baru
-            </button>
-          </div>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <PageHeader ulpNama={ulpNama} />
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <DoneCard
+            v={done.values} mt={done.magicToken} kondisi={kondisi} ulpNama={ulpNama}
+            onReset={handleReset}
+            onResend={() => bukaWa(done.values, done.magicToken)}
+          />
         </div>
       </div>
     )
   }
 
+  // ── Form Screen
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <Header ulpNama={ulpNama} />
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-5 border-r-2 border-neo-black">
-          <form onSubmit={handleSubmit} className="max-w-lg mx-auto flex flex-col gap-4">
-            <div className="border-2 border-neo-black bg-pln-yellow/10">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <PageHeader ulpNama={ulpNama} />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        {/* Form */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, borderRight: '1px solid var(--border)' }}>
+          <form onSubmit={handleSubmit} style={{ maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Paste APKT */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', backgroundColor: 'var(--accent-subtle)' }}>
               <button type="button"
-                className="w-full flex items-center justify-between px-3 py-2 font-bold text-sm text-neo-black"
-                onClick={() => setShowPaste((v) => !v)}>
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 14px', fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                onClick={() => setShowPaste((p) => !p)}>
                 <span>📋 Paste dari APKT</span>
-                <span className="text-xs opacity-60">{showPaste ? '▲' : '▼'}</span>
+                <span style={{ fontSize: 11, opacity: 0.6 }}>{showPaste ? '▲' : '▼'}</span>
               </button>
               {showPaste && (
-                <div className="px-3 pb-3 flex flex-col gap-2">
+                <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <textarea rows={3} placeholder="Copy baris dari tabel APKT, lalu paste di sini..."
                     value={pasteText} onChange={(e) => handlePaste(e.target.value)}
-                    className="neo-input w-full px-3 py-2 text-xs font-mono resize-none" />
+                    className="input" style={{ fontFamily: 'monospace', fontSize: 11, resize: 'none' }} />
                   {values.created_at && (
-                    <p className="text-xs text-pln-blue font-medium">
-                      ⏱ Waktu lapor APKT:{' '}
-                      {new Date(values.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    <p style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 500, margin: 0 }}>
+                      ⏱ Waktu APKT: {new Date(values.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   )}
-                  <p className="text-xs text-gray-400">Form akan terisi otomatis dari data yang di-paste.</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Form akan terisi otomatis dari data yang di-paste.</p>
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <Input label="Nomor Tiket *" placeholder="G441550xxx" value={values.nomor_tiket}
-                  onChange={(e) => set('nomor_tiket', e.target.value)} error={fieldErrors.nomor_tiket} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Input label="Nomor Tiket *" placeholder="G441550xxx" value={values.nomor_tiket} onChange={(e) => set('nomor_tiket', e.target.value)} error={fieldErrors.nomor_tiket} />
               </div>
-              <div className="col-span-2">
-                <Select label="Status Awal" value={values.status ?? 'lapor'}
-                  onChange={(e) => set('status', e.target.value)}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Select label="Status Awal" value={values.status ?? 'lapor'} onChange={(e) => set('status', e.target.value)}>
                   <option value="lapor">Lapor</option>
                   <option value="ditangani">Sedang Ditangani</option>
                   <option value="nyala_sementara">Nyala Sementara</option>
                   <option value="selesai">Selesai</option>
                 </Select>
               </div>
-              <div className="col-span-2">
-                <Input label="Nama Pelanggan *" placeholder="Budi Santoso" value={values.nama_pelanggan}
-                  onChange={(e) => set('nama_pelanggan', e.target.value)} error={fieldErrors.nama_pelanggan} />
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Input label="Nama Pelanggan *" placeholder="Budi Santoso" value={values.nama_pelanggan} onChange={(e) => set('nama_pelanggan', e.target.value)} error={fieldErrors.nama_pelanggan} />
               </div>
-              <div className="col-span-2">
+              <div style={{ gridColumn: '1 / -1' }}>
                 <Input label="Nomor Pelanggan *" placeholder="081234567890" value={values.nomor_pelanggan ?? ''}
                   onChange={(e) => set('nomor_pelanggan', e.target.value || '')} error={fieldErrors.nomor_pelanggan}
                   hint="Digunakan untuk buka WhatsApp ke pelanggan" />
               </div>
-              <div className="col-span-2">
-                <Input label="Lokasi" placeholder="Jl. Merdeka No. 10" value={values.lokasi}
-                  onChange={(e) => set('lokasi', e.target.value)} error={fieldErrors.lokasi} />
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Input label="Lokasi" placeholder="Jl. Merdeka No. 10" value={values.lokasi} onChange={(e) => set('lokasi', e.target.value)} error={fieldErrors.lokasi} />
               </div>
-              <div className="col-span-2">
+              <div style={{ gridColumn: '1 / -1' }}>
                 <Textarea label="Keterangan" placeholder="Keterangan tambahan..." rows={3}
-                  value={values.keterangan ?? ''}
-                  onChange={(e) => set('keterangan', e.target.value || '')} error={fieldErrors.keterangan} />
+                  value={values.keterangan ?? ''} onChange={(e) => set('keterangan', e.target.value || '')} error={fieldErrors.keterangan} />
               </div>
             </div>
+
             {serverError && (
-              <div className="border-2 border-pln-red p-3" style={{ backgroundColor: '#FFF5F5' }}>
-                <p className="text-sm font-medium text-pln-red">{serverError}</p>
+              <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: 'rgba(228,0,43,0.1)', border: '1px solid rgba(228,0,43,0.25)' }}>
+                <p style={{ fontSize: 13, color: '#E4002B', margin: 0, fontWeight: 500 }}>⚠ {serverError}</p>
               </div>
             )}
-            <Button type="submit" variant="primary" size="md" className="w-full" loading={loading}>
-              Simpan & Buka WhatsApp →
+            <Button type="submit" variant="primary" size="md" style={{ width: '100%' }} loading={loading}>
+              Simpan &amp; Buka WhatsApp →
             </Button>
           </form>
         </div>
-        <div className="w-96 shrink-0 p-5 bg-neo-gray/20 flex flex-col">
+
+        {/* Preview Panel */}
+        <div style={{ width: 360, flexShrink: 0, padding: 20, display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-surface-2)' }}>
           <WaPreview pesan={pesanWa} nomorHp={values.nomor_pelanggan ?? ''} kondisi={kondisi} onKondisiChange={setKondisi} />
         </div>
       </div>
@@ -381,14 +441,14 @@ export function CcCallbackClient({ ulpNama, ulpId }: Props) {
   )
 }
 
-function Header({ ulpNama }: { ulpNama: string }) {
+function PageHeader({ ulpNama }: { ulpNama: string }) {
   return (
-    <div className="px-6 py-4 border-b-2 border-neo-black bg-neo-white shrink-0">
-      <div className="flex items-center gap-3">
-        <span className="text-xl">☎️</span>
+    <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18 }}>☎️</span>
         <div>
-          <h1 className="text-xl font-black text-neo-black uppercase tracking-wide leading-none">CC Call Back</h1>
-          <p className="text-xs text-gray-500 mt-0.5 font-medium">
+          <h1 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>CC Call Back</h1>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>
             Info / Follow-up Laporan Pelanggan · {ulpNama}
           </p>
         </div>
