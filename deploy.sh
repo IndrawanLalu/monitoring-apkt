@@ -32,13 +32,13 @@ git pull origin main
 ok "Git pull selesai"
 
 # ─── 3. Install dependencies ──────────────────────────────────
-info "Menginstall dependencies (pnpm install)..."
-pnpm install --frozen-lockfile
+info "Menginstall dependencies (npm install)..."
+npm install
 ok "Dependencies terinstall"
 
 # ─── 4. Build Next.js ─────────────────────────────────────────
-info "Build aplikasi (pnpm build)..."
-pnpm run build
+info "Build aplikasi (npm run build)..."
+npm run build
 ok "Build selesai"
 
 # ─── 5. Restart PM2 ───────────────────────────────────────────
