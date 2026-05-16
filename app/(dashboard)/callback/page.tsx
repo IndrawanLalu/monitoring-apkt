@@ -41,53 +41,73 @@ export default async function CallbackPage() {
   const today = nowWita.toISOString().split('T')[0]
   const nowM = nowWita.getUTCHours() * 60 + nowWita.getUTCMinutes()
 
-  const [{ data: reguRaw }, { data: ulpRaw }, { data: ulpSettings }, { data: todayPikets }] = await Promise.all([
-    admin.from('regu').select('id, ulp_id, nama, nomor_hp, created_at').eq('ulp_id', ulpId).order('nama'),
-    admin.from('ulp').select('id, nama, kode, wa_grup_id, created_at'),
+  // Ambil semua ULP, setting template, dan semua piket hari ini (semua ULP)
+  const [{ data: ulpRaw }, { data: ulpSettings }, { data: todayPiketsAll }] = await Promise.all([
+    admin.from('ulp').select('id, nama, kode'),
     admin.from('ulp').select('wa_template_callback').eq('id', ulpId).maybeSingle(),
     admin
       .from('piket')
-      .select('id, shift_type(jam_mulai, jam_selesai)')
-      .eq('ulp_id', ulpId)
+      .select('id, ulp_id, shift_type(jam_mulai, jam_selesai)')
       .eq('tanggal', today),
   ])
 
-  // Cari piket yang shift-nya sedang aktif sekarang
-  const activePiket = (todayPikets ?? []).find((p) => {
-    const st = p.shift_type as unknown as { jam_mulai: string; jam_selesai: string }
-    return isShiftActive(st.jam_mulai, st.jam_selesai, nowM)
-  }) ?? null
+  // Kumpulkan piket_id yang shift-nya sedang aktif sekarang (semua ULP)
+  const activePiketIds: string[] = []
+  const activeUlpIds: string[] = []
 
-  // Ambil regu_id yang ada di piket aktif
+  for (const p of todayPiketsAll ?? []) {
+    const st = p.shift_type as unknown as { jam_mulai: string; jam_selesai: string }
+    if (st && isShiftActive(st.jam_mulai, st.jam_selesai, nowM)) {
+      activePiketIds.push(p.id as string)
+      const uid = p.ulp_id as string
+      if (!activeUlpIds.includes(uid)) activeUlpIds.push(uid)
+    }
+  }
+
+  // Ambil regu yang ada di piket aktif (dari semua ULP aktif sekaligus)
   let activeReguIds: string[] = []
-  if (activePiket) {
+  if (activePiketIds.length > 0) {
     const { data: pp } = await admin
       .from('piket_petugas')
       .select('regu_id')
-      .eq('piket_id', activePiket.id)
+      .in('piket_id', activePiketIds)
     activeReguIds = [...new Set((pp ?? []).map((p) => p.regu_id as string))]
   }
 
-  const noActivePiket = !activePiket || activeReguIds.length === 0
+  const noActivePiket = activeReguIds.length === 0
 
-  const ulpMap = new Map(
-    (ulpRaw ?? []).map((u) => [
-      u.id as string,
-      { nama: u.nama as string },
-    ]),
-  )
+  // Ambil data regu dari semua ULP yang punya piket aktif
+  let reguList: {
+    id: string
+    ulp_id: string
+    nama: string
+    nomor_hp: string | null
+    created_at: string
+    ulpNama: string
+  }[] = []
 
-  // Hanya regu yang masuk piket aktif
-  const reguList = (reguRaw ?? [])
-    .filter((r) => !noActivePiket && activeReguIds.includes(r.id as string))
-    .map((r) => ({
-      id: r.id as string,
-      ulp_id: r.ulp_id as string,
-      nama: r.nama as string,
-      nomor_hp: (r.nomor_hp ?? null) as string | null,
-      created_at: r.created_at as string,
-      ulpNama: ulpMap.get(r.ulp_id as string)?.nama ?? (r.ulp_id as string),
-    }))
+  if (activeUlpIds.length > 0) {
+    const { data: reguRaw } = await admin
+      .from('regu')
+      .select('id, ulp_id, nama, nomor_hp, created_at')
+      .in('ulp_id', activeUlpIds)
+      .order('nama')
+
+    const ulpMap = new Map(
+      (ulpRaw ?? []).map((u) => [u.id as string, u.nama as string])
+    )
+
+    reguList = (reguRaw ?? [])
+      .filter((r) => activeReguIds.includes(r.id as string))
+      .map((r) => ({
+        id: r.id as string,
+        ulp_id: r.ulp_id as string,
+        nama: r.nama as string,
+        nomor_hp: (r.nomor_hp ?? null) as string | null,
+        created_at: r.created_at as string,
+        ulpNama: ulpMap.get(r.ulp_id as string) ?? (r.ulp_id as string),
+      }))
+  }
 
   const raw = ulpSettings as { wa_template_callback?: string | null } | null
   const template: string = raw?.wa_template_callback || TEMPLATE_CALLBACK_DEFAULT
