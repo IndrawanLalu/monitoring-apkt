@@ -14,15 +14,6 @@ async function verifyUserAdminAccess(adminClient: any, targetUserId: string, adm
     return data.some((r: any) => adminUlpIds.includes(r.ulp_id))
   }
 
-  // Fallback cek profiles.ulp_id
-  const { data: pData } = await adminClient
-    .from('profiles')
-    .select('ulp_id')
-    .eq('id', targetUserId)
-    .single()
-
-  if (pData && adminUlpIds.includes(pData.ulp_id)) return true
-
   return false
 }
 
@@ -83,9 +74,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (uuError) {
         return NextResponse.json({ error: uuError.message }, { status: 500 })
       }
-
-      // Update ulp_id utama di profiles
-      await admin.from('profiles').update({ ulp_id: ulp_ids[0] }).eq('id', id)
     }
 
     return NextResponse.json({ data: { success: true } })

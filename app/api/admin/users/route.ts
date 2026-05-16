@@ -32,7 +32,7 @@ export async function GET() {
   // 2. Ambil profiles dengan role 'cc' yang id-nya ada di userIdsInUlps
   const { data: profilesRows, error: profError } = await admin
     .from('profiles')
-    .select('id, nama, role, ulp_id')
+    .select('id, nama, role')
     .in('id', userIdsInUlps)
     .eq('role', 'cc')
     .order('nama')
@@ -69,7 +69,7 @@ export async function GET() {
       id: uid,
       nama: p.nama as string,
       email: authUsersMap.get(uid) ?? '-',
-      ulp_id: p.ulp_id as string,
+      ulp_id: assignedUlps[0] ?? '',
       ulps: assignedUlps,
     }
   })
@@ -120,7 +120,6 @@ export async function POST(req: Request) {
       .from('profiles')
       .insert({
         id: userId,
-        ulp_id: ulp_ids[0], // ULP utama / pertama
         nama,
         role: 'cc',
       })
