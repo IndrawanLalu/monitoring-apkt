@@ -176,9 +176,9 @@ export function DashboardClient({ ulpDataList, today }: Props) {
   }
 
   return (
-    <div className="flex flex-col overflow-hidden bg-neo-white" style={{ height: 'calc(100vh - 3rem)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: 'calc(100vh - 3rem)', backgroundColor: 'var(--bg-base)' }}>
       {/* ULP Sections — flex column, each takes equal height */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
         {ulpDataList.map(({ ulp, piket, reguList, petugasList }) => {
           const laporan = laporanMap[ulp.id] ?? []
           const uniqueLaporan = Array.from(new Map(laporan.map((l) => [l.id, l])).values())
@@ -207,7 +207,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
           const gridCols = n <= 6 ? `grid-cols-${n}` : 'grid-cols-6'
 
           return (
-            <div key={ulp.id} className="flex-1 min-h-0 flex flex-col border-b-2 border-neo-black last:border-b-0">
+            <div key={ulp.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--border)' }}>
               {/* Combined Header */}
               <div
                 className="flex items-center justify-between px-3 py-2 border-b-2 border-neo-black shrink-0"
@@ -268,12 +268,12 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
               {/* Regu Grid or No-Piket State */}
               {!piket ? (
-                <div className="flex-1 relative">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-neo-black">Belum ada piket aktif</p>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Belum ada piket aktif</p>
                       <button
-                        className="mt-1 text-xs text-pln-blue underline"
+                        style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                         onClick={() => router.push('/piket')}
                       >
                         Buat piket
@@ -282,13 +282,18 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 relative overflow-hidden">
+                <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
                   <div
-                    className={`absolute inset-0 grid ${gridCols} divide-x-2 divide-neo-black`}
-                    style={{ gridTemplateRows: '1fr' }}
+                    style={{
+                      position: 'absolute', inset: 0,
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${Math.min(reguStats.length, 6)}, 1fr)`,
+                      gridTemplateRows: '1fr',
+                      gap: 0,
+                    }}
                   >
-                    {reguStats.map((stats) => (
-                      <div key={stats.regu.id} className="h-full overflow-hidden flex flex-col">
+                    {reguStats.map((stats, i) => (
+                      <div key={stats.regu.id} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
                         <ReguCard
                           stats={stats}
                           onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket.id, reguList)}
@@ -325,31 +330,53 @@ export function DashboardClient({ ulpDataList, today }: Props) {
         title={`Update Status — #${updateModal?.nomor_tiket ?? ''}`}
       >
         {updateModal && (
-          <div className="flex flex-col gap-4 min-w-72">
-            <div className="neo-border p-3 bg-neo-gray text-sm flex flex-col gap-1">
-              <p className="font-bold text-neo-black">{updateModal.nama_pelanggan}</p>
-              <p className="text-gray-600 text-xs">{updateModal.lokasi}</p>
-              <div className="mt-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 280 }}>
+            {/* Info Pelanggan */}
+            <div style={{ padding: '12px 14px', borderRadius: 10, backgroundColor: 'var(--bg-surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', margin: 0 }}>{updateModal.nama_pelanggan}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{updateModal.lokasi}</p>
+              {updateModal.keterangan && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>{updateModal.keterangan}</p>
+              )}
+              <div style={{ marginTop: 4 }}>
                 <StatusBadge status={updateModal.status} size="sm" />
               </div>
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-bold text-neo-black">Status Baru</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(Object.entries(STATUS_LABEL) as [StatusLaporan, string][]).map(([val, label]) => (
-                  <button
-                    key={val}
-                    onClick={() => setUpdateStatus(val)}
-                    className={`neo-button px-3 py-2 text-xs font-bold text-left transition-all ${
-                      updateStatus === val
-                        ? 'bg-pln-blue text-white'
-                        : 'bg-neo-white text-neo-black hover:bg-neo-gray'
-                    }`}
-                  >
-                    {updateStatus === val ? '✓ ' : ''}{label}
-                  </button>
-                ))}
+            {/* Status Baru */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Status Baru</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {(Object.entries(STATUS_LABEL) as [StatusLaporan, string][]).map(([val, label]) => {
+                  const isChosen = updateStatus === val
+                  return (
+                    <button
+                      key={val}
+                      onClick={() => setUpdateStatus(val)}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: isChosen ? 700 : 500,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: '2px solid',
+                        borderColor: isChosen ? 'var(--accent)' : 'var(--border)',
+                        backgroundColor: isChosen ? 'var(--accent)' : 'var(--bg-surface-2)',
+                        color: isChosen ? '#fff' : 'var(--text-secondary)',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ width: 14, height: 14, borderRadius: 3, border: isChosen ? 'none' : '2px solid var(--border-strong)', backgroundColor: isChosen ? 'rgba(255,255,255,0.25)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
+                        {isChosen && '✓'}
+                      </span>
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -361,13 +388,9 @@ export function DashboardClient({ ulpDataList, today }: Props) {
               onChange={(e) => setUpdateKeterangan(e.target.value)}
             />
 
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={closeUpdateModal}>
-                Batal
-              </Button>
-              <Button variant="primary" className="flex-1" loading={updating} onClick={handleSubmitUpdate}>
-                Simpan
-              </Button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="secondary" style={{ flex: 1 }} onClick={closeUpdateModal}>Batal</Button>
+              <Button variant="primary" style={{ flex: 1 }} loading={updating} onClick={handleSubmitUpdate}>Simpan</Button>
             </div>
           </div>
         )}
