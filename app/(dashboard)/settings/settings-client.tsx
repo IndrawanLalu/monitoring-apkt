@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type Dispatch, type SetStateAction } from "react";
 import type { Regu, Petugas, WaSessionStatus } from "@/types";
 import { WaTab } from "./wa-tab";
 import { ReguTab } from "./regu-tab";
@@ -53,11 +53,19 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
   const current = ulpsData[selectedUlpIdx];
   const currentState = ulpStates[selectedUlpIdx];
 
-  function setCurrentReguList(reguList: Regu[]) {
-    setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, reguList } : s));
+  function setCurrentReguList(action: SetStateAction<Regu[]>) {
+    setUlpStates((prev) => prev.map((s, i) => {
+      if (i !== selectedUlpIdx) return s
+      const reguList = typeof action === 'function' ? action(s.reguList) : action
+      return { ...s, reguList }
+    }))
   }
-  function setCurrentPetugasList(petugasList: Petugas[]) {
-    setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, petugasList } : s));
+  function setCurrentPetugasList(action: SetStateAction<Petugas[]>) {
+    setUlpStates((prev) => prev.map((s, i) => {
+      if (i !== selectedUlpIdx) return s
+      const petugasList = typeof action === 'function' ? action(s.petugasList) : action
+      return { ...s, petugasList }
+    }))
   }
   function setCurrentWaGrupId(waGrupId: string) {
     setUlpStates((prev) => prev.map((s, i) => i === selectedUlpIdx ? { ...s, waGrupId } : s));
