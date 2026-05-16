@@ -6,6 +6,7 @@ import { WaTab } from "./wa-tab";
 import { ReguTab } from "./regu-tab";
 import { PetugasTab } from "./petugas-tab";
 import { CallbackTemplateTab } from "./callback-template-tab";
+import { UsersTab } from "./users-tab";
 
 interface WaSession {
   id: string;
@@ -21,6 +22,7 @@ interface Props {
     role: string;
     ulp: { id: string; nama: string; kode: string; wa_grup_id: string | null };
     userId?: string;
+    ulps?: { id: string; nama: string; kode: string }[];
   };
   reguList: Regu[];
   petugasList: Petugas[];
@@ -28,14 +30,7 @@ interface Props {
   templateCallback: string;
 }
 
-type Tab = "wa" | "regu" | "petugas" | "callback";
-
-const TABS = [
-  { key: "wa",       label: "📱 WhatsApp"          },
-  { key: "regu",     label: "👷 Regu"               },
-  { key: "petugas",  label: "👤 Petugas"            },
-  { key: "callback", label: "📞 Template Callback"  },
-] as const;
+type Tab = "wa" | "regu" | "petugas" | "callback" | "users";
 
 export function SettingsClient({
   profile,
@@ -58,11 +53,19 @@ export function SettingsClient({
 
   const toastColor = toast?.type === "success" ? "#1DB954" : toast?.type === "error" ? "#E4002B" : "var(--accent)";
 
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "wa",       label: "📱 WhatsApp"          },
+    { key: "regu",     label: "👷 Regu"               },
+    { key: "petugas",  label: "👤 Petugas"            },
+    { key: "callback", label: "📞 Template Callback"  },
+    ...(profile.role === "admin" ? [{ key: "users" as Tab, label: "👥 Manajemen User CC" }] : []),
+  ];
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Tab Bar */}
       <div style={{ flexShrink: 0, display: "flex", borderBottom: "1px solid var(--border)", backgroundColor: "var(--bg-surface)", overflowX: "auto" }}>
-        {TABS.map(({ key, label }) => (
+        {tabs.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -136,6 +139,9 @@ export function SettingsClient({
         )}
         {tab === "callback" && (
           <CallbackTemplateTab ulpId={profile.ulp_id} initialTemplate={templateCallback} />
+        )}
+        {tab === "users" && (
+          <UsersTab ulps={profile.ulps ?? []} onToast={showToast} />
         )}
       </div>
     </div>
