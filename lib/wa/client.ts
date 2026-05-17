@@ -45,6 +45,9 @@ export function getOrCreateWaClient(userId: string): Client {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--disable-gpu',
+        '--disable-features=site-per-process',
+        '--disable-web-security',
+        '--allow-running-insecure-content',
       ],
     },
   })
