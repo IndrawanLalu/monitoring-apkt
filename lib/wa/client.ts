@@ -93,6 +93,12 @@ export async function destroyWaClient(userId: string): Promise<void> {
   }
 }
 
+export function hasWaSession(userId: string): boolean {
+  const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
+  const targetDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir, `session-user-${userId}`)
+  return fs.existsSync(targetDir)
+}
+
 export function getAllWaClients(): Map<string, Client> {
   return clients
 }

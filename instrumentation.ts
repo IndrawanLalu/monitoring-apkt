@@ -2,9 +2,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
   const { createAdminClient } = await import('./lib/supabase/admin')
-  const { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient } = await import('./lib/wa/client')
-  const { default: path } = await import('path')
-  const { default: fs } = await import('fs')
+  const { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient, hasWaSession } = await import('./lib/wa/client')
 
   const admin = createAdminClient()
 
@@ -17,9 +15,7 @@ export async function register() {
     if (isClientRegistered(user_id)) continue
 
     // Skip auto-reconnect jika session folder tidak ada (session sudah stale)
-    const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
-    const sessionPath = path.resolve(process.cwd(), sessionDir, `session-user-${user_id}`)
-    if (!fs.existsSync(sessionPath)) {
+    if (!hasWaSession(user_id)) {
       console.log(`[WA] Auto-reconnect skipped user ${user_id}: session folder not found`)
       await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', user_id)
       continue
