@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
 
+  // Jika ada client lama yang tidak connected, destroy dulu agar bisa init fresh
+  await destroyWaClient(userId)
+
   const client = getOrCreateWaClient(userId)
 
   if (!isClientRegistered(userId)) {
