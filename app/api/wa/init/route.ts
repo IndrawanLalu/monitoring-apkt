@@ -11,7 +11,9 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id
   const admin = createAdminClient()
-  await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
+  const { error: upsertError } = await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
+  if (upsertError) console.error('[WA Init] upsert error:', upsertError)
+  else console.log('[WA Init] upsert ok, userId:', userId)
 
   // Jika ada client lama yang tidak connected, destroy dulu agar bisa init fresh
   await destroyWaClient(userId)
