@@ -1,3 +1,38 @@
+## 4. Fix WA Connection: Chrome Zombie, Auto-Reconnect, dan Kompatibilitas
+
+### Masalah yang Ditemukan
+1. **Chrome zombie**: Saat `wa_session` dikosongkan manual di Supabase (bukan lewat `/disconnect`), proses Chrome tetap jalan di VPS. Init berikutnya gagal dengan *"browser already running"*.
+2. **Auto-reconnect loop**: `instrumentation.ts` mencoba reconnect saat server start untuk semua session dengan status `connected`. Kalau folder session tidak ada (sudah dihapus manual), Chrome gagal start lalu error `auth timeout` terus-menerus.
+3. **State tidak sinkron**: `isClientRegistered` masih `true` dari run sebelumnya → event handler `qr`/`ready` tidak di-register ulang → init baru tidak pernah memicu QR.
+4. **Kompatibilitas WhatsApp Web**: Flag `--disable-web-security` menyebabkan WA Web navigate ke error page → error `Execution context was destroyed`.
+
+### Perbaikan
+
+**`app/api/wa/init/route.ts`**
+- Tambah `await destroyWaClient(userId)` sebelum `getOrCreateWaClient` agar state selalu bersih setiap kali user tekan "Hubungkan".
+
+**`lib/wa/client.ts`**
+- `destroyWaClient` kini membaca `SingletonLock` file untuk kill Chrome via PID, plus fallback `pkill -f "session-user-{userId}"` untuk kill zombie process.
+- Tambah `hasWaSession(userId)` — helper cek apakah folder session lokal ada.
+- Tambah `userAgent` Chrome agar WA Web tidak deteksi headless browser.
+- Hapus flag `--disable-web-security` dan `--allow-running-insecure-content` yang merusak security model WA Web.
+- Tambah flag `--disable-features=site-per-process`.
+
+**`instrumentation.ts`**
+- Sebelum auto-reconnect, cek `hasWaSession(user_id)` — kalau folder tidak ada, set status `disconnected` di DB dan skip.
+- Error handler auto-reconnect kini memanggil `destroyWaClient` untuk cleanup.
+
+### Catatan Operasional WA di VPS
+- Jangan hapus `wa_session` di Supabase secara manual — gunakan tombol "Putuskan Koneksi" di Settings agar Chrome ikut di-kill dan folder session ikut dihapus.
+- Kalau terpaksa hapus manual, jalankan di VPS: `pkill -f chromium && rm -rf wa-sessions/session-user-* && pm2 restart monitoring-apkt`
+- WA session tersimpan per `user_id` (bukan `ulp_id`) di folder `wa-sessions/session-user-{userId}`.
+- Satu user bisa kirim WA ke group manapun selama nomor WA-nya terdaftar di group tersebut.
+
+### Status Saat Ini (17 Mei 2026)
+- Error `Execution context was destroyed` masih dalam investigasi — kemungkinan `whatsapp-web.js@1.34.7` perlu `webVersionCache` untuk pin versi WA Web yang stabil.
+
+---
+
 # Log Perubahan - 17 Mei 2026
 
 ## 3. Fix Multi-ULP: Dashboard, Callback, Settings, Navbar
