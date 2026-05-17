@@ -1,6 +1,7 @@
 import { Client, LocalAuth } from 'whatsapp-web.js'
 import path from 'path'
 import fs from 'fs'
+import { execSync } from 'child_process'
 
 // Global singleton — keyed by user_id (bukan ulp_id)
 const g = global as typeof global & {
@@ -65,9 +66,21 @@ export async function destroyWaClient(userId: string): Promise<void> {
     registeredHandlers.delete(userId)
   }
 
-  // Hapus folder sesi secara fisik agar tidak nyangkut saat init berikutnya
+  // Kill Chrome zombie process via SingletonLock PID sebelum hapus folder
   const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
   const targetDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir, `session-user-${userId}`)
+  try {
+    const lockFile = path.join(targetDir, 'SingletonLock')
+    if (fs.existsSync(lockFile)) {
+      const link = fs.readlinkSync(lockFile)
+      const pid = link.split('-')[1]
+      if (pid) execSync(`kill -9 ${pid} 2>/dev/null || true`)
+    }
+  } catch {}
+  // Fallback: kill by data directory path
+  try {
+    execSync(`pkill -f "session-user-${userId}" 2>/dev/null || true`)
+  } catch {}
   try {
     if (fs.existsSync(targetDir)) {
       fs.rmSync(targetDir, { recursive: true, force: true })
