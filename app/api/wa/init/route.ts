@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getOrCreateWaClient, getWaClient, isClientRegistered, markClientRegistered, destroyWaClient } from '@/lib/wa/client'
+import { getOrCreateWaClient, getWaClient, isClientRegistered, markClientRegistered, destroyWaClient, isInitLocked, acquireInitLock, releaseInitLock } from '@/lib/wa/client'
 import QRCode from 'qrcode'
 
 export async function POST(req: NextRequest) {
@@ -11,6 +11,15 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id
   const admin = createAdminClient()
+
+  // Cegah concurrent init untuk user yang sama
+  if (isInitLocked(userId)) {
+    console.log(`[WA Init] LOCKED — already initializing for user:${userId.slice(0, 8)}, reject`)
+    return NextResponse.json({ success: true, message: 'WhatsApp sedang dalam proses inisialisasi, harap tunggu.' })
+  }
+  acquireInitLock(userId)
+  console.log(`[WA Init] lock acquired user:${userId.slice(0, 8)}`)
+
   const { error: upsertError } = await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
   if (upsertError) console.error('[WA Init] upsert error:', upsertError)
   else console.log('[WA Init] upsert ok, userId:', userId)
@@ -34,6 +43,7 @@ export async function POST(req: NextRequest) {
     })
 
     client.on('ready', async () => {
+      releaseInitLock(userId)
       const info = client.info
 
       await admin
@@ -57,6 +67,7 @@ export async function POST(req: NextRequest) {
     })
 
     client.on('disconnected', async () => {
+      releaseInitLock(userId)
       await destroyWaClient(userId)
       await admin
         .from('wa_session')
@@ -65,6 +76,7 @@ export async function POST(req: NextRequest) {
     })
 
     client.on('auth_failure', async () => {
+      releaseInitLock(userId)
       console.error(`[WA Auth Failure] user: ${userId}`)
       await destroyWaClient(userId)
       await admin
@@ -76,6 +88,7 @@ export async function POST(req: NextRequest) {
 
   // Initialize async without blocking, but catch error
   client.initialize().catch(async (err) => {
+    releaseInitLock(userId)
     console.error(`[WA Init Error] user: ${userId}`, err)
     await destroyWaClient(userId, 'init-catch')
     await admin

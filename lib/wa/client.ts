@@ -7,10 +7,28 @@ import { execSync } from 'child_process'
 const g = global as typeof global & {
   _waClients?: Map<string, Client>
   _waRegistered?: Set<string>
+  _waInitLocks?: Set<string>
 }
 
 const clients: Map<string, Client> = g._waClients ?? (g._waClients = new Map())
 const registeredHandlers: Set<string> = g._waRegistered ?? (g._waRegistered = new Set())
+const initLocks: Set<string> = g._waInitLocks ?? (g._waInitLocks = new Set())
+
+export function isInitLocked(userId: string): boolean {
+  return initLocks.has(userId)
+}
+
+export function acquireInitLock(userId: string): boolean {
+  if (initLocks.has(userId)) return false
+  initLocks.add(userId)
+  // Safety net: auto-release after 3 minutes jika handler tidak merelease
+  setTimeout(() => initLocks.delete(userId), 180_000)
+  return true
+}
+
+export function releaseInitLock(userId: string): void {
+  initLocks.delete(userId)
+}
 
 export function isClientRegistered(userId: string): boolean {
   return registeredHandlers.has(userId)
@@ -61,6 +79,17 @@ export async function destroyWaClient(userId: string, caller = 'unknown'): Promi
 
   const client = clients.get(userId)
   if (client) {
+    // Kill Chrome langsung via PID — lebih reliable dari pkill/fuser
+    try {
+      const chromePid = (client as any).pupBrowser?.process()?.pid as number | undefined
+      if (chromePid) {
+        process.kill(chromePid, 'SIGKILL')
+        console.log(`[WA Destroy] SIGKILL chromePid:${chromePid} user:${short}`)
+      } else {
+        console.log(`[WA Destroy] chromePid not available user:${short}`)
+      }
+    } catch (e) { console.log(`[WA Destroy] chromePid kill error:`, e) }
+
     try { await client.logout().catch(() => null) } catch {}
     try { await client.destroy().catch(() => null) } catch {}
     clients.delete(userId)
