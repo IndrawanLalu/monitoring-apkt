@@ -106,11 +106,11 @@ export async function destroyWaClient(userId: string, caller = 'unknown'): Promi
 
   // Kill semua Chrome yang menggunakan session folder ini (termasuk zombie)
   async function killZombieChrome() {
-    try { execSync(`fuser -km '${targetDir}' 2>/dev/null || true`) } catch {}
     try { execSync(`pkill -9 -f "session-user-${userId}" 2>/dev/null || true`) } catch {}
     try {
       execSync(
         `for pid in $(ls /proc | grep -E '^[0-9]+$'); do` +
+        ` [ "$pid" = "$$" ] && continue;` +
         ` grep -ql "session-user-${userId}" /proc/$pid/cmdline 2>/dev/null &&` +
         ` kill -9 $pid 2>/dev/null; done`,
         { shell: '/bin/bash' }
