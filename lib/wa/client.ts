@@ -106,33 +106,23 @@ export async function destroyWaClient(userId: string, caller = 'unknown'): Promi
 
   // Kill semua Chrome yang menggunakan session folder ini (termasuk zombie)
   async function killZombieChrome() {
-    try { execSync(`pkill -9 -f "session-user-${userId}" 2>/dev/null || true`) } catch {}
-    try {
-      execSync(
-        `for pid in $(ls /proc | grep -E '^[0-9]+$'); do` +
-        ` [ "$pid" = "$$" ] && continue;` +
-        ` grep -ql "session-user-${userId}" /proc/$pid/cmdline 2>/dev/null &&` +
-        ` kill -9 $pid 2>/dev/null; done`,
-        { shell: '/bin/bash' }
-      )
-    } catch {}
-    // Juga cek SingletonLock yang mungkin muncul setelah kill pertama
+    // Kill Chrome main process via SingletonLock PID first (most precise — avoids cmdline truncation issues)
     const lockFile = path.join(targetDir, 'SingletonLock')
     if (fs.existsSync(lockFile)) {
       try {
         const link = fs.readlinkSync(lockFile)
-        const pid = link.split('-').pop()
-        console.log(`[WA Destroy] SingletonLock pid:"${pid}" user:${short}`)
-        if (pid && /^\d+$/.test(pid)) {
-          execSync(`kill -9 ${pid} 2>/dev/null || true`)
-        }
+        const pid = parseInt(link.split('-').pop() ?? '')
+        console.log(`[WA Destroy] SingletonLock pid:${pid} user:${short}`)
+        if (pid > 0) { try { process.kill(pid, 'SIGKILL') } catch {} }
       } catch {}
     }
+    // Fallback: pkill by cmdline
+    try { execSync(`pkill -9 -f "session-user-${userId}" 2>/dev/null || true`) } catch {}
   }
 
   await killZombieChrome()
   console.log(`[WA Destroy] kill round 1 done user:${short}`)
-  await new Promise((r) => setTimeout(r, 800))
+  await new Promise((r) => setTimeout(r, 2000))
 
   function tryDeleteFolder() {
     if (!fs.existsSync(targetDir)) return false
@@ -144,7 +134,7 @@ export async function destroyWaClient(userId: string, caller = 'unknown'): Promi
     // Folder masih ada — Chrome zombie sempat rekonstruksi, kill lagi
     console.log(`[WA Destroy] ZOMBIE folder masih ada, kill round 2 user:${short}`)
     await killZombieChrome()
-    await new Promise((r) => setTimeout(r, 800))
+    await new Promise((r) => setTimeout(r, 2000))
     if (tryDeleteFolder()) {
       console.error(`[WA Destroy] ZOMBIE folder MASIH ADA setelah 2x kill user:${short}`)
     } else {
