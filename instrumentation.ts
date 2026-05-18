@@ -49,15 +49,22 @@ export async function register() {
     })
 
     client.on('disconnected', async () => {
+      await destroyWaClient(user_id, 'instrumentation-disconnected')
       await admin
         .from('wa_session')
         .update({ status: 'disconnected', session_data: null })
         .eq('user_id', user_id)
     })
 
+    client.on('auth_failure', async () => {
+      console.error(`[WA] Auto-reconnect auth failure user ${user_id}`)
+      await destroyWaClient(user_id, 'instrumentation-auth_failure')
+      await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', user_id)
+    })
+
     client.initialize().catch(async (err) => {
       console.error(`[WA] Auto-reconnect error user ${user_id}:`, err)
-      await destroyWaClient(user_id)
+      await destroyWaClient(user_id, 'instrumentation-catch')
       await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', user_id)
     })
   }

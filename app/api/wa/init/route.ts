@@ -15,10 +15,12 @@ export async function POST(req: NextRequest) {
   if (upsertError) console.error('[WA Init] upsert error:', upsertError)
   else console.log('[WA Init] upsert ok, userId:', userId)
 
-  // Jika ada client lama yang tidak connected, destroy dulu agar bisa init fresh
-  await destroyWaClient(userId)
+  console.log(`[WA Init] PRE-DESTROY inMap:${!!getWaClient(userId)} registered:${isClientRegistered(userId)} userId:${userId.slice(0,8)}`)
+  await destroyWaClient(userId, 'init-route')
+  console.log(`[WA Init] POST-DESTROY inMap:${!!getWaClient(userId)} registered:${isClientRegistered(userId)}`)
 
   const client = getOrCreateWaClient(userId)
+  console.log(`[WA Init] client created, calling initialize...`)
 
   if (!isClientRegistered(userId)) {
     markClientRegistered(userId)
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest) {
   // Initialize async without blocking, but catch error
   client.initialize().catch(async (err) => {
     console.error(`[WA Init Error] user: ${userId}`, err)
-    await destroyWaClient(userId)
+    await destroyWaClient(userId, 'init-catch')
     await admin
       .from('wa_session')
       .update({ status: 'disconnected', session_data: null })

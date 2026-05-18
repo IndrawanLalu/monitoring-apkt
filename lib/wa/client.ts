@@ -55,49 +55,75 @@ export function getOrCreateWaClient(userId: string): Client {
   return client
 }
 
-export async function destroyWaClient(userId: string): Promise<void> {
+export async function destroyWaClient(userId: string, caller = 'unknown'): Promise<void> {
+  const short = userId.slice(0, 8)
+  console.log(`[WA Destroy] START user:${short} caller:${caller} inMap:${clients.has(userId)} registered:${registeredHandlers.has(userId)}`)
+
   const client = clients.get(userId)
   if (client) {
-    try {
-      await client.logout().catch(() => null)
-    } catch (e) {}
-    try {
-      await client.destroy().catch(() => null)
-    } catch (e) {}
+    try { await client.logout().catch(() => null) } catch {}
+    try { await client.destroy().catch(() => null) } catch {}
     clients.delete(userId)
     registeredHandlers.delete(userId)
+    console.log(`[WA Destroy] client.destroy() done, removed from map user:${short}`)
+  } else {
+    console.log(`[WA Destroy] no client in map for user:${short}`)
   }
 
   const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
   const targetDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir, `session-user-${userId}`)
+  const folderExists = fs.existsSync(targetDir)
+  console.log(`[WA Destroy] folder exists:${folderExists} path:${targetDir}`)
 
-  // Kill via SingletonLock PID — hostname mungkin mengandung '-', pakai .pop()
   const lockFile = path.join(targetDir, 'SingletonLock')
-  try {
-    if (fs.existsSync(lockFile)) {
+  const lockExists = fs.existsSync(lockFile)
+  console.log(`[WA Destroy] SingletonLock exists:${lockExists}`)
+
+  if (lockExists) {
+    try {
+      execSync(`fuser -k -9 "${lockFile}" 2>/dev/null || true`)
+      console.log(`[WA Destroy] fuser kill done`)
+    } catch (e) { console.log(`[WA Destroy] fuser error:`, e) }
+    try {
       const link = fs.readlinkSync(lockFile)
       const pid = link.split('-').pop()
+      console.log(`[WA Destroy] SingletonLock link:"${link}" pid:"${pid}"`)
       if (pid && /^\d+$/.test(pid)) {
         execSync(`kill -9 ${pid} 2>/dev/null || true`)
+        console.log(`[WA Destroy] kill -9 ${pid} done`)
       }
-    }
-  } catch {}
+    } catch (e) { console.log(`[WA Destroy] PID kill error:`, e) }
+  }
 
-  // Fallback: pkill by session dir path
   try {
     execSync(`pkill -f "session-user-${userId}" 2>/dev/null || true`)
+    console.log(`[WA Destroy] pkill done`)
   } catch {}
 
-  // Beri waktu Chrome exit sebelum hapus folder
+  try {
+    execSync(
+      `for pid in $(ls /proc | grep -E '^[0-9]+$'); do` +
+      ` grep -ql "session-user-${userId}" /proc/$pid/cmdline 2>/dev/null &&` +
+      ` kill -9 $pid 2>/dev/null; done`,
+      { shell: '/bin/bash' }
+    )
+    console.log(`[WA Destroy] /proc scan kill done`)
+  } catch {}
+
   await new Promise((r) => setTimeout(r, 300))
 
-  try {
-    if (fs.existsSync(targetDir)) {
+  if (fs.existsSync(targetDir)) {
+    try {
       fs.rmSync(targetDir, { recursive: true, force: true })
+      console.log(`[WA Destroy] folder deleted user:${short}`)
+    } catch (e) {
+      console.error(`[WA Destroy] GAGAL hapus folder user:${short}`, e)
     }
-  } catch (e) {
-    console.error('[WA Cleanup] Gagal hapus session folder:', e)
+  } else {
+    console.log(`[WA Destroy] folder sudah tidak ada user:${short}`)
   }
+
+  console.log(`[WA Destroy] DONE user:${short} inMap:${clients.has(userId)} registered:${registeredHandlers.has(userId)}`)
 }
 
 export function hasWaSession(userId: string): boolean {
