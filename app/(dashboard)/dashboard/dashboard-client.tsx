@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReguCard } from '@/components/dashboard/regu-card'
 import { Modal } from '@/components/ui/modal'
@@ -43,6 +43,10 @@ interface AddModalCtx {
 export function DashboardClient({ ulpDataList, today }: Props) {
   const router = useRouter()
 
+  const [selectedUlpIdx, setSelectedUlpIdx] = useState(0)
+  const selectedUlpIdxRef = useRef(0)
+  const [newLaporanFlags, setNewLaporanFlags] = useState<Record<string, boolean>>({})
+
   const [laporanMap, setLaporanMap] = useState<Record<string, Laporan[]>>(
     () => Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList]))
   )
@@ -84,13 +88,24 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
   const ulpIds = ulpDataList.map((d) => d.ulp.id)
 
+  function handleSelectUlp(idx: number) {
+    setSelectedUlpIdx(idx)
+    selectedUlpIdxRef.current = idx
+    const ulpId = ulpDataList[idx]?.ulp.id
+    if (ulpId) setNewLaporanFlags((prev) => ({ ...prev, [ulpId]: false }))
+  }
+
   const handleRealtimeInsert = useCallback((laporan: Laporan) => {
     setLaporanMap((prev) => {
       const existing = prev[laporan.ulp_id] ?? []
       if (existing.some((l) => l.id === laporan.id)) return prev
       return { ...prev, [laporan.ulp_id]: [laporan, ...existing] }
     })
-  }, [])
+    const currentUlpId = ulpDataList[selectedUlpIdxRef.current]?.ulp.id
+    if (laporan.ulp_id !== currentUlpId) {
+      setNewLaporanFlags((prev) => ({ ...prev, [laporan.ulp_id]: true }))
+    }
+  }, [ulpDataList])
 
   const handleRealtimeUpdate = useCallback((laporan: Laporan) => {
     setLaporanMap((prev) => {
@@ -175,134 +190,174 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     setSendingRekap(null)
   }
 
+  const selectedData = ulpDataList[selectedUlpIdx] ?? ulpDataList[0]
+
+  const { ulp, piket, reguList, petugasList } = selectedData
+  const laporan = laporanMap[ulp.id] ?? []
+  const uniqueLaporan = Array.from(new Map(laporan.map((l) => [l.id, l])).values())
+
+  const reguStats: ReguStats[] = reguList.map((regu) => {
+    const regPetugas = petugasList.filter((p) => p.regu_id === regu.id)
+    const regLaporan = uniqueLaporan.filter((l) => l.regu_id === regu.id)
+    return {
+      regu,
+      petugas: regPetugas,
+      laporan: regLaporan,
+      total: regLaporan.length,
+      lapor: regLaporan.filter((l) => l.status === 'lapor').length,
+      ditangani: regLaporan.filter((l) => l.status === 'ditangani').length,
+      nyala_sementara: regLaporan.filter((l) => l.status === 'nyala_sementara').length,
+      selesai: regLaporan.filter((l) => l.status === 'selesai').length,
+    }
+  })
+
+  const totalLapor = reguStats.reduce((s, r) => s + r.lapor, 0)
+  const totalDitangani = reguStats.reduce((s, r) => s + r.ditangani, 0)
+  const totalNyalaSementara = reguStats.reduce((s, r) => s + r.nyala_sementara, 0)
+  const totalSelesai = reguStats.reduce((s, r) => s + r.selesai, 0)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', height: 'calc(100vh - 3rem)', backgroundColor: 'var(--bg-base)' }}>
-      {/* ULP Sections — flex column, each takes equal height */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-        {ulpDataList.map(({ ulp, piket, reguList, petugasList }) => {
-          const laporan = laporanMap[ulp.id] ?? []
-          const uniqueLaporan = Array.from(new Map(laporan.map((l) => [l.id, l])).values())
-
-          const reguStats: ReguStats[] = reguList.map((regu) => {
-            const regPetugas = petugasList.filter((p) => p.regu_id === regu.id)
-            const regLaporan = uniqueLaporan.filter((l) => l.regu_id === regu.id)
-            return {
-              regu,
-              petugas: regPetugas,
-              laporan: regLaporan,
-              total: regLaporan.length,
-              lapor: regLaporan.filter((l) => l.status === 'lapor').length,
-              ditangani: regLaporan.filter((l) => l.status === 'ditangani').length,
-              nyala_sementara: regLaporan.filter((l) => l.status === 'nyala_sementara').length,
-              selesai: regLaporan.filter((l) => l.status === 'selesai').length,
-            }
-          })
-
-          const totalLapor = reguStats.reduce((s, r) => s + r.lapor, 0)
-          const totalDitangani = reguStats.reduce((s, r) => s + r.ditangani, 0)
-          const totalNyalaSementara = reguStats.reduce((s, r) => s + r.nyala_sementara, 0)
-          const totalSelesai = reguStats.reduce((s, r) => s + r.selesai, 0)
-
-          const n = reguList.length
-          const gridCols = n <= 6 ? `grid-cols-${n}` : 'grid-cols-6'
-
-          return (
-            <div key={ulp.id} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', borderBottom: '1px solid var(--border)' }}>
-              {/* Combined Header */}
-              <div
-                className="flex items-center justify-between px-3 py-2 border-b-2 border-neo-black shrink-0"
-                style={{ backgroundColor: '#003B8E' }}
-              >
-                {/* Left: app icon + ULP + shift info */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-base shrink-0">⚡</span>
-                  <span className="text-white font-black text-sm shrink-0">{ulp.nama.toUpperCase()}</span>
-                  {piket ? (
-                    <>
-                      <span
-                        className="px-2 py-0.5 text-xs font-black shrink-0"
-                        style={{ backgroundColor: '#FFD200', color: '#1A1A1A' }}
-                      >
-                        {SHIFT_LABEL[piket.shift_type.nama as ShiftType].replace('Shift ', '')}
-                      </span>
-                      <span className="text-blue-100 text-xs font-medium shrink-0">
-                        {SHIFT_JAM[piket.shift_type.nama as ShiftType].mulai}–{SHIFT_JAM[piket.shift_type.nama as ShiftType].selesai}
-                      </span>
-                      {piket.nama_cc && (
-                        <span className="text-blue-200 text-xs hidden lg:block truncate">CC: {piket.nama_cc}</span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-blue-200 text-xs italic">Belum ada piket</span>
-                  )}
-                </div>
-
-                {/* Right: clock + date + stats + rekap */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right hidden md:block">
-                    <div className="text-white font-mono text-sm font-black leading-none" suppressHydrationWarning>
-                      {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </div>
-                    <div className="text-blue-200 text-xs leading-none mt-0.5">
-                      {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
-                    <UlpStatChip label="P" value={totalDitangani} bg="#0070C0" bordered />
-                    <UlpStatChip label="H" value={totalNyalaSementara} bg="#FFD200" textDark />
-                    <UlpStatChip label="S" value={totalSelesai} bg="#1DB954" />
-                  </div>
-                  {piket && (
-                    <button
-                      disabled={sendingRekap === ulp.id}
-                      onClick={() => handleRekap(ulp.id, piket.id)}
-                      className="px-2 py-0.5 text-xs font-bold border border-white/40 text-white hover:opacity-80 transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: '#1DB954' }}
-                    >
-                      {sendingRekap === ulp.id ? '...' : '📊 Rekap'}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Regu Grid (tampil selalu, piket=null berarti tidak ada shift aktif) */}
-              {reguStats.length === 0 ? (
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Belum ada regu terdaftar</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      position: 'absolute', inset: 0,
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${Math.min(reguStats.length, 6)}, 1fr)`,
-                      gridTemplateRows: '1fr',
-                      gap: 0,
-                    }}
-                  >
-                    {reguStats.map((stats, i) => (
-                      <div key={stats.regu.id} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                        <ReguCard
-                          stats={stats}
-                          onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
-                          onKirimWa={handleKirimWa}
-                          onUpdateLaporan={openUpdateLaporan}
-                          sendingWa={sendingWa === stats.regu.id}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      {/* ULP Chip Selector — hanya tampil jika lebih dari 1 ULP */}
+      {ulpDataList.length > 1 && (
+        <div style={{
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 16px',
+          borderBottom: '1px solid var(--border)',
+          backgroundColor: 'var(--bg-surface)',
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ULP:</span>
+          {ulpDataList.map((d, idx) => (
+            <button
+              key={d.ulp.id}
+              onClick={() => handleSelectUlp(idx)}
+              style={{
+                position: 'relative',
+                padding: '4px 14px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: idx === selectedUlpIdx ? 700 : 500,
+                border: '2px solid',
+                borderColor: idx === selectedUlpIdx ? 'var(--accent)' : 'var(--border)',
+                backgroundColor: idx === selectedUlpIdx ? 'var(--accent)' : 'transparent',
+                color: idx === selectedUlpIdx ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {d.ulp.nama}
+              {newLaporanFlags[d.ulp.id] && idx !== selectedUlpIdx && (
+                <span style={{
+                  position: 'absolute',
+                  top: -4,
+                  right: -4,
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: '#E4002B',
+                  border: '2px solid var(--bg-surface)',
+                }} />
               )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Dashboard ULP yang dipilih — penuh */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* Header ULP */}
+        <div
+          className="flex items-center justify-between px-3 py-2 border-b-2 border-neo-black shrink-0"
+          style={{ backgroundColor: '#003B8E' }}
+        >
+          {/* Left: icon + ULP + shift info */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0">⚡</span>
+            <span className="text-white font-black text-sm shrink-0">{ulp.nama.toUpperCase()}</span>
+            {piket ? (
+              <>
+                <span
+                  className="px-2 py-0.5 text-xs font-black shrink-0"
+                  style={{ backgroundColor: '#FFD200', color: '#1A1A1A' }}
+                >
+                  {SHIFT_LABEL[piket.shift_type.nama as ShiftType].replace('Shift ', '')}
+                </span>
+                <span className="text-blue-100 text-xs font-medium shrink-0">
+                  {SHIFT_JAM[piket.shift_type.nama as ShiftType].mulai}–{SHIFT_JAM[piket.shift_type.nama as ShiftType].selesai}
+                </span>
+                {piket.nama_cc && (
+                  <span className="text-blue-200 text-xs hidden lg:block truncate">CC: {piket.nama_cc}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-blue-200 text-xs italic">Belum ada piket</span>
+            )}
+          </div>
+
+          {/* Right: clock + date + stats + rekap */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-right hidden md:block">
+              <div className="text-white font-mono text-sm font-black leading-none" suppressHydrationWarning>
+                {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </div>
+              <div className="text-blue-200 text-xs leading-none mt-0.5">
+                {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
             </div>
-          )
-        })}
+            <div className="flex items-center gap-1">
+              <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
+              <UlpStatChip label="P" value={totalDitangani} bg="#0070C0" bordered />
+              <UlpStatChip label="H" value={totalNyalaSementara} bg="#FFD200" textDark />
+              <UlpStatChip label="S" value={totalSelesai} bg="#1DB954" />
+            </div>
+            {piket && (
+              <button
+                disabled={sendingRekap === ulp.id}
+                onClick={() => handleRekap(ulp.id, piket.id)}
+                className="px-2 py-0.5 text-xs font-bold border border-white/40 text-white hover:opacity-80 transition-opacity disabled:opacity-50"
+                style={{ backgroundColor: '#1DB954' }}
+              >
+                {sendingRekap === ulp.id ? '...' : '📊 Rekap'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Regu Grid */}
+        {reguStats.length === 0 ? (
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Belum ada regu terdaftar</p>
+            </div>
+          </div>
+        ) : (
+          <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+            <div
+              style={{
+                position: 'absolute', inset: 0,
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.min(reguStats.length, 6)}, 1fr)`,
+                gridTemplateRows: '1fr',
+                gap: 0,
+              }}
+            >
+              {reguStats.map((stats, i) => (
+                <div key={stats.regu.id} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <ReguCard
+                    stats={stats}
+                    onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
+                    onKirimWa={handleKirimWa}
+                    onUpdateLaporan={openUpdateLaporan}
+                    sendingWa={sendingWa === stats.regu.id}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Laporan Modal */}
