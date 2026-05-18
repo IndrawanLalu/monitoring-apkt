@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient } from '@/lib/wa/client'
+import { getOrCreateWaClient, getWaClient, isClientRegistered, markClientRegistered, destroyWaClient } from '@/lib/wa/client'
 import QRCode from 'qrcode'
 
 export async function POST(req: NextRequest) {
