@@ -7,6 +7,7 @@ import { ReguTab } from "./regu-tab";
 import { PetugasTab } from "./petugas-tab";
 import { CallbackTemplateTab } from "./callback-template-tab";
 import { UsersTab } from "./users-tab";
+import { ImportTab } from "./import-tab";
 
 interface WaSession {
   id: string;
@@ -34,7 +35,7 @@ interface Props {
   waSession: WaSession | null;
 }
 
-type Tab = "wa" | "regu" | "petugas" | "callback" | "users";
+type Tab = "wa" | "regu" | "petugas" | "callback" | "users" | "import";
 
 export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Props) {
   const [tab, setTab] = useState<Tab>("wa");
@@ -84,6 +85,7 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
     { key: "petugas",  label: "👤 Petugas"           },
     { key: "callback", label: "📞 Template Callback" },
     ...(profile.role === "admin" ? [{ key: "users" as Tab, label: "👥 Manajemen User CC" }] : []),
+    ...(profile.role === "admin" ? [{ key: "import" as Tab, label: "📥 Import Petugas" }] : []),
   ];
 
   return (
@@ -191,6 +193,12 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
         )}
         {tab === "users" && (
           <UsersTab ulps={profile.ulps ?? []} onToast={showToast} />
+        )}
+        {tab === "import" && (
+          <ImportTab
+            ulpsData={ulpsData.map((d, i) => ({ ulp: d.ulp, reguList: ulpStates[i].reguList }))}
+            onToast={showToast}
+          />
         )}
       </div>
     </div>
