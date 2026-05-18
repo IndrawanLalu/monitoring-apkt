@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PasswordForm } from './password-form'
-import { RekapClient, type RekapData, type UlpSummary, type ReguSummary } from './rekap-client'
+import { RekapClient, type RekapData, type UlpSummary, type ReguSummary, type LaporanItem } from './rekap-client'
 import type { StatusLaporan } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -50,7 +50,7 @@ export default async function RekapLaporanPage() {
       .eq('tanggal', todayStr),
     // Gangguan yang belum selesai — semua waktu
     supabase.from('laporan')
-      .select('id, ulp_id, regu_id, status, created_at')
+      .select('id, ulp_id, regu_id, status, nomor_tiket, nama_pelanggan, keterangan')
       .not('status', 'eq', 'selesai'),
     // Gangguan selesai — hanya hari ini
     supabase.from('laporan')
@@ -102,6 +102,7 @@ export default async function RekapLaporanPage() {
   const globalStats = emptyStats()
   let globalTotal = 0
   const laporanByUlpAndRegu: Record<string, Record<string, Record<StatusLaporan, number>>> = {}
+  const laporanAktifByRegu: Record<string, LaporanItem[]> = {}
 
   laporanList.forEach(l => {
     if (!l.regu_id) return
@@ -111,6 +112,19 @@ export default async function RekapLaporanPage() {
     if (!laporanByUlpAndRegu[l.ulp_id]) laporanByUlpAndRegu[l.ulp_id] = {}
     if (!laporanByUlpAndRegu[l.ulp_id][l.regu_id]) laporanByUlpAndRegu[l.ulp_id][l.regu_id] = emptyStats()
     laporanByUlpAndRegu[l.ulp_id][l.regu_id][status]++
+  })
+
+  // Kumpulkan laporan belum selesai per regu (untuk ditampilkan detail)
+  ;(laporanAktif ?? []).forEach(l => {
+    if (!l.regu_id) return
+    if (!laporanAktifByRegu[l.regu_id]) laporanAktifByRegu[l.regu_id] = []
+    laporanAktifByRegu[l.regu_id].push({
+      id: l.id,
+      nomor_tiket: l.nomor_tiket,
+      nama_pelanggan: l.nama_pelanggan,
+      keterangan: l.keterangan ?? null,
+      status: l.status as StatusLaporan,
+    })
   })
 
   // Agregasi callback
@@ -144,7 +158,7 @@ export default async function RekapLaporanPage() {
         ulpStats.nyala_sementara += stats.nyala_sementara
         ulpStats.selesai       += stats.selesai
         ulpTotal += total
-        return { id: regu.id, nama: regu.nama, petugas: petugasByRegu[regu.id] || [], stats, total }
+        return { id: regu.id, nama: regu.nama, petugas: petugasByRegu[regu.id] || [], stats, total, laporanAktif: laporanAktifByRegu[regu.id] || [] }
       })
       return { id: ulp.id, nama: ulp.nama, stats: ulpStats, total: ulpTotal, regus: reguSummaries }
     })

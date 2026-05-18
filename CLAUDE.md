@@ -1,5 +1,58 @@
 # Log Perubahan - 18 Mei 2026
 
+## 6. Fix VPS: Multi-WA Simultaneous + PM2 Startup
+
+### Root Cause: Snap Chromium Shared SingletonLock
+Ketika 2 user berbeda mencoba connect WA bersamaan, salah satu mendapat error **"browser already running"**. Investigasi panjang menemukan penyebab utama:
+
+- **Snap Chromium** meletakkan `SingletonLock` di direktori shared:
+  `/home/indrawansaputra/snap/chromium/common/chromium/SingletonLock`
+  — **bukan** di folder session per-user (`wa-sessions/session-user-{userId}`)
+- Akibatnya: Chrome user pertama (snap) menaruh lock di shared dir → Chrome user kedua (juga snap) menemukan lock itu → error "browser already running" meski session folder berbeda
+- Akar masalah: `CHROME_PATH` tidak ter-inject ke environment PM2 (PM2 tidak otomatis baca `.env`) → Chrome fallback ke snap Chromium dari `$PATH`
+
+### Perbaikan
+
+**VPS `.env`**
+- Ubah `CHROME_PATH=/usr/bin/google-chrome` → `CHROME_PATH=/opt/google/chrome/google-chrome`
+- Path langsung ke binary Google Chrome (bukan rantai symlink, bukan snap)
+
+**PM2 environment**
+- Inject CHROME_PATH ke PM2 process: `CHROME_PATH=/opt/google/chrome/google-chrome pm2 restart monitoring-apkt --update-env`
+- Verifikasi: `pm2 env 0 | grep CHROME` harus menampilkan path yang benar
+
+**PM2 Startup (systemd)**
+- Konfigurasi `pm2 startup` → systemd service `pm2-indrawansaputra.service`
+- `pm2 save` untuk simpan state — PM2 dan aplikasi otomatis start saat VPS reboot
+
+### Pelajaran Penting
+
+**LARANGAN: `fuser -km <path>`**
+- Flag `-m` di `fuser` memperlakukan path sebagai referensi filesystem mount → SIGKILL ke **semua** proses di root filesystem (PM2, Node.js, SSH daemon — semuanya mati)
+- Sudah dihapus dari `lib/wa/client.ts`
+
+**Snap Chromium vs Google Chrome**
+- Snap Chromium: child processes SELALU pakai shared dir `/home/user/snap/chromium/common/chromium/` sebagai user-data-dir, mengabaikan flag `--user-data-dir` → SingletonLock di shared dir → konflik multi-user
+- Google Chrome (`/opt/google/chrome/google-chrome`): lock ditempatkan di folder session yang benar → tidak ada konflik
+
+**Kill Chrome zombie yang aman (`lib/wa/client.ts`)**
+1. Baca `SingletonLock` → ambil PID → `process.kill(pid, 'SIGKILL')` dari Node.js langsung
+2. Fallback: `pkill -9 -f "[s]ession-user-${userId}"` — `[s]` trick mencegah pkill match cmdline subprocess-nya sendiri
+
+### Recovery Darurat WA Bermasalah di VPS
+```bash
+pkill -9 -f chromium; pkill -9 -f google-chrome
+rm -rf /var/www/monitoring-apkt/wa-sessions/session-user-*
+rm -f /home/indrawansaputra/snap/chromium/common/chromium/SingletonLock
+CHROME_PATH=/opt/google/chrome/google-chrome pm2 restart monitoring-apkt --update-env
+```
+
+### Catatan Operasional (update)
+- Catatan lama di bagian ## 4 tentang `pkill -f chromium` diganti dengan perintah di atas (lebih lengkap dan aman)
+- Jangan gunakan snap Chromium untuk WA di VPS — pastikan `pm2 env 0 | grep CHROME` selalu menampilkan `/opt/google/chrome/google-chrome`
+
+---
+
 ## 5. Dashboard: ULP Chip Selector + Badge Notif Laporan Baru
 
 ### Perubahan

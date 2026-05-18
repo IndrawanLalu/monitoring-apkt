@@ -5,12 +5,21 @@ import type { StatusLaporan } from '@/types'
 
 type StatusCount = Record<StatusLaporan, number>
 
+export interface LaporanItem {
+  id: string
+  nomor_tiket: string
+  nama_pelanggan: string
+  keterangan: string | null
+  status: StatusLaporan
+}
+
 export interface ReguSummary {
   id: string
   nama: string
   petugas: string[]
   stats: StatusCount
   total: number
+  laporanAktif: LaporanItem[]
 }
 
 export interface UlpSummary {
@@ -96,6 +105,45 @@ function StatusChips({ stats, total }: { stats: StatusCount; total: number }) {
         fontSize: 10, fontWeight: 800, borderRadius: 6, padding: '2px 8px',
         backgroundColor: '#1F2937', color: '#fff',
       }}>{total} Total</span>
+    </div>
+  )
+}
+
+function LaporanList({ items }: { items: LaporanItem[] }) {
+  if (items.length === 0) return null
+  return (
+    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {items.map(l => {
+        const cfg = STATUS_CONFIG[l.status]
+        return (
+          <div key={l.id} style={{
+            borderLeft: `3px solid ${cfg.color}`,
+            paddingLeft: 8,
+            paddingTop: 4,
+            paddingBottom: 4,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 9, fontWeight: 700, borderRadius: 4, padding: '2px 6px',
+                backgroundColor: cfg.bg, color: cfg.color,
+                border: `1px solid ${cfg.color}44`, flexShrink: 0,
+              }}>
+                {cfg.icon} {cfg.label}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#111827' }}>
+                {l.nomor_tiket}
+              </span>
+              <span style={{ fontSize: 11, color: '#374151' }}>·</span>
+              <span style={{ fontSize: 11, color: '#374151' }}>{l.nama_pelanggan}</span>
+            </div>
+            {l.keterangan && (
+              <p style={{ fontSize: 10, color: '#6B7280', margin: '2px 0 0', lineHeight: 1.4 }}>
+                {l.keterangan}
+              </p>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -323,6 +371,9 @@ export function RekapClient({ data }: { data: RekapData }) {
                                 </p>
                               </div>
                             </div>
+
+                            {/* Laporan belum selesai */}
+                            <LaporanList items={regu.laporanAktif} />
                           </div>
                         </div>
                       ))
