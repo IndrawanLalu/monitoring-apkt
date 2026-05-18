@@ -68,27 +68,35 @@ export async function destroyWaClient(userId: string): Promise<void> {
     registeredHandlers.delete(userId)
   }
 
-  // Kill Chrome zombie process via SingletonLock PID sebelum hapus folder
   const sessionDir = process.env.WA_SESSION_DIR ?? './wa-sessions'
   const targetDir = path.resolve(/*turbopackIgnore: true*/ process.cwd(), sessionDir, `session-user-${userId}`)
+
+  // Kill via SingletonLock PID — hostname mungkin mengandung '-', pakai .pop()
+  const lockFile = path.join(targetDir, 'SingletonLock')
   try {
-    const lockFile = path.join(targetDir, 'SingletonLock')
     if (fs.existsSync(lockFile)) {
       const link = fs.readlinkSync(lockFile)
-      const pid = link.split('-')[1]
-      if (pid) execSync(`kill -9 ${pid} 2>/dev/null || true`)
+      const pid = link.split('-').pop()
+      if (pid && /^\d+$/.test(pid)) {
+        execSync(`kill -9 ${pid} 2>/dev/null || true`)
+      }
     }
   } catch {}
-  // Fallback: kill by data directory path
+
+  // Fallback: pkill by session dir path
   try {
     execSync(`pkill -f "session-user-${userId}" 2>/dev/null || true`)
   } catch {}
+
+  // Beri waktu Chrome exit sebelum hapus folder
+  await new Promise((r) => setTimeout(r, 300))
+
   try {
     if (fs.existsSync(targetDir)) {
       fs.rmSync(targetDir, { recursive: true, force: true })
     }
   } catch (e) {
-    console.error('[WA Cleanup] Error checking/deleting session folder:', e)
+    console.error('[WA Cleanup] Gagal hapus session folder:', e)
   }
 }
 
