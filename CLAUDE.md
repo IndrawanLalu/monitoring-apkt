@@ -1,3 +1,18 @@
+# Log Perubahan - 18 Mei 2026
+
+## 5. Dashboard: ULP Chip Selector + Badge Notif Laporan Baru
+
+### Perubahan
+**`app/(dashboard)/dashboard/dashboard-client.tsx`**
+- Ganti tampilan multi-ULP stacked (2 ULP masing-masing 50% tinggi layar) menjadi **chip selector** tipis di atas dashboard.
+- Hanya ULP yang dipilih yang ditampilkan, menempati penuh sisa tinggi layar — tampilan lebih lega.
+- Badge merah muncul di chip ULP yang sedang tidak ditampilkan jika ada laporan baru masuk via realtime.
+- Realtime tetap subscribe ke **semua ULP** pengguna — data tidak hilang saat pindah ULP.
+- Gunakan `useRef` untuk track `selectedUlpIdx` di dalam `handleRealtimeInsert` tanpa menambah deps useCallback (mencegah resubscribe channel realtime).
+- Chip selector hanya tampil jika user punya >1 ULP (konsisten dengan Settings).
+
+---
+
 ## 4. Fix WA Connection: Chrome Zombie, Auto-Reconnect, dan Kompatibilitas
 
 ### Masalah yang Ditemukan
