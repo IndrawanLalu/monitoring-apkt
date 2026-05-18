@@ -333,31 +333,55 @@ export function DashboardClient({ ulpDataList, today }: Props) {
               <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>Belum ada regu terdaftar</p>
             </div>
           </div>
-        ) : (
-          <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
-            <div
-              style={{
-                position: 'absolute', inset: 0,
-                display: 'grid',
-                gridTemplateColumns: `repeat(${Math.min(reguStats.length, 6)}, 1fr)`,
-                gridTemplateRows: '1fr',
-                gap: 0,
-              }}
-            >
-              {reguStats.map((stats, i) => (
-                <div key={stats.regu.id} style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                  <ReguCard
-                    stats={stats}
-                    onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
-                    onKirimWa={handleKirimWa}
-                    onUpdateLaporan={openUpdateLaporan}
-                    sendingWa={sendingWa === stats.regu.id}
-                  />
+        ) : (() => {
+          const isTwoRows = reguStats.length > 4
+          const topStats = isTwoRows ? reguStats.slice(0, Math.ceil(reguStats.length / 2)) : reguStats
+          const bottomStats = isTwoRows ? reguStats.slice(Math.ceil(reguStats.length / 2)) : []
+
+          function ReguRow({ items }: { items: typeof reguStats }) {
+            return (
+              <>
+                {items.map((stats, i) => (
+                  <div key={stats.regu.id} style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                    <ReguCard
+                      stats={stats}
+                      onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
+                      onKirimWa={handleKirimWa}
+                      onUpdateLaporan={openUpdateLaporan}
+                      sendingWa={sendingWa === stats.regu.id}
+                    />
+                  </div>
+                ))}
+              </>
+            )
+          }
+
+          return (
+            <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
+                {/* Baris atas */}
+                <div style={{
+                  flex: 1, minHeight: 0,
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${topStats.length}, 1fr)`,
+                  borderBottom: isTwoRows ? '1px solid var(--border)' : 'none',
+                }}>
+                  <ReguRow items={topStats} />
                 </div>
-              ))}
+                {/* Baris bawah — hanya ada jika isTwoRows */}
+                {isTwoRows && (
+                  <div style={{
+                    flex: 1, minHeight: 0,
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${bottomStats.length}, 1fr)`,
+                  }}>
+                    <ReguRow items={bottomStats} />
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* Add Laporan Modal */}
