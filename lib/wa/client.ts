@@ -104,52 +104,54 @@ export async function destroyWaClient(userId: string, caller = 'unknown'): Promi
   const folderExists = fs.existsSync(targetDir)
   console.log(`[WA Destroy] folder exists:${folderExists} path:${targetDir}`)
 
-  const lockFile = path.join(targetDir, 'SingletonLock')
-  const lockExists = fs.existsSync(lockFile)
-  console.log(`[WA Destroy] SingletonLock exists:${lockExists}`)
-
-  if (lockExists) {
+  // Kill semua Chrome yang menggunakan session folder ini (termasuk zombie)
+  async function killZombieChrome() {
+    try { execSync(`fuser -km '${targetDir}' 2>/dev/null || true`) } catch {}
+    try { execSync(`pkill -9 -f "session-user-${userId}" 2>/dev/null || true`) } catch {}
     try {
-      execSync(`fuser -k -9 "${lockFile}" 2>/dev/null || true`)
-      console.log(`[WA Destroy] fuser kill done`)
-    } catch (e) { console.log(`[WA Destroy] fuser error:`, e) }
-    try {
-      const link = fs.readlinkSync(lockFile)
-      const pid = link.split('-').pop()
-      console.log(`[WA Destroy] SingletonLock link:"${link}" pid:"${pid}"`)
-      if (pid && /^\d+$/.test(pid)) {
-        execSync(`kill -9 ${pid} 2>/dev/null || true`)
-        console.log(`[WA Destroy] kill -9 ${pid} done`)
-      }
-    } catch (e) { console.log(`[WA Destroy] PID kill error:`, e) }
+      execSync(
+        `for pid in $(ls /proc | grep -E '^[0-9]+$'); do` +
+        ` grep -ql "session-user-${userId}" /proc/$pid/cmdline 2>/dev/null &&` +
+        ` kill -9 $pid 2>/dev/null; done`,
+        { shell: '/bin/bash' }
+      )
+    } catch {}
+    // Juga cek SingletonLock yang mungkin muncul setelah kill pertama
+    const lockFile = path.join(targetDir, 'SingletonLock')
+    if (fs.existsSync(lockFile)) {
+      try {
+        const link = fs.readlinkSync(lockFile)
+        const pid = link.split('-').pop()
+        console.log(`[WA Destroy] SingletonLock pid:"${pid}" user:${short}`)
+        if (pid && /^\d+$/.test(pid)) {
+          execSync(`kill -9 ${pid} 2>/dev/null || true`)
+        }
+      } catch {}
+    }
   }
 
-  try {
-    execSync(`pkill -f "session-user-${userId}" 2>/dev/null || true`)
-    console.log(`[WA Destroy] pkill done`)
-  } catch {}
+  await killZombieChrome()
+  console.log(`[WA Destroy] kill round 1 done user:${short}`)
+  await new Promise((r) => setTimeout(r, 800))
 
-  try {
-    execSync(
-      `for pid in $(ls /proc | grep -E '^[0-9]+$'); do` +
-      ` grep -ql "session-user-${userId}" /proc/$pid/cmdline 2>/dev/null &&` +
-      ` kill -9 $pid 2>/dev/null; done`,
-      { shell: '/bin/bash' }
-    )
-    console.log(`[WA Destroy] /proc scan kill done`)
-  } catch {}
+  function tryDeleteFolder() {
+    if (!fs.existsSync(targetDir)) return false
+    try { fs.rmSync(targetDir, { recursive: true, force: true }) } catch {}
+    return fs.existsSync(targetDir) // true = masih ada (gagal hapus)
+  }
 
-  await new Promise((r) => setTimeout(r, 300))
-
-  if (fs.existsSync(targetDir)) {
-    try {
-      fs.rmSync(targetDir, { recursive: true, force: true })
-      console.log(`[WA Destroy] folder deleted user:${short}`)
-    } catch (e) {
-      console.error(`[WA Destroy] GAGAL hapus folder user:${short}`, e)
+  if (tryDeleteFolder()) {
+    // Folder masih ada — Chrome zombie sempat rekonstruksi, kill lagi
+    console.log(`[WA Destroy] ZOMBIE folder masih ada, kill round 2 user:${short}`)
+    await killZombieChrome()
+    await new Promise((r) => setTimeout(r, 800))
+    if (tryDeleteFolder()) {
+      console.error(`[WA Destroy] ZOMBIE folder MASIH ADA setelah 2x kill user:${short}`)
+    } else {
+      console.log(`[WA Destroy] folder deleted (round 2) user:${short}`)
     }
   } else {
-    console.log(`[WA Destroy] folder sudah tidak ada user:${short}`)
+    console.log(`[WA Destroy] folder deleted user:${short}`)
   }
 
   console.log(`[WA Destroy] DONE user:${short} inMap:${clients.has(userId)} registered:${registeredHandlers.has(userId)}`)

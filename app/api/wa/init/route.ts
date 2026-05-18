@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getOrCreateWaClient, getWaClient, isClientRegistered, markClientRegistered, destroyWaClient, isInitLocked, acquireInitLock, releaseInitLock } from '@/lib/wa/client'
+import { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient, isInitLocked, acquireInitLock, releaseInitLock } from '@/lib/wa/client'
 import QRCode from 'qrcode'
 
 export async function POST(req: NextRequest) {
@@ -14,22 +14,34 @@ export async function POST(req: NextRequest) {
 
   // Cegah concurrent init untuk user yang sama
   if (isInitLocked(userId)) {
-    console.log(`[WA Init] LOCKED — already initializing for user:${userId.slice(0, 8)}, reject`)
+    console.log(`[WA Init] LOCKED — already initializing user:${userId.slice(0, 8)}`)
     return NextResponse.json({ success: true, message: 'WhatsApp sedang dalam proses inisialisasi, harap tunggu.' })
   }
   acquireInitLock(userId)
   console.log(`[WA Init] lock acquired user:${userId.slice(0, 8)}`)
 
-  const { error: upsertError } = await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
+  const { error: upsertError } = await admin
+    .from('wa_session')
+    .upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
   if (upsertError) console.error('[WA Init] upsert error:', upsertError)
-  else console.log('[WA Init] upsert ok, userId:', userId)
 
-  console.log(`[WA Init] PRE-DESTROY inMap:${!!getWaClient(userId)} registered:${isClientRegistered(userId)} userId:${userId.slice(0,8)}`)
   await destroyWaClient(userId, 'init-route')
-  console.log(`[WA Init] POST-DESTROY inMap:${!!getWaClient(userId)} registered:${isClientRegistered(userId)}`)
+
+  // Fire-and-forget dengan auto-retry jika "browser already running"
+  startWaSession(userId, admin, 1)
+
+  return NextResponse.json({ success: true, message: 'WhatsApp client initializing...' })
+}
+
+async function startWaSession(
+  userId: string,
+  admin: ReturnType<typeof createAdminClient>,
+  attempt: number
+) {
+  const MAX_ATTEMPTS = 3
+  console.log(`[WA Init] startWaSession attempt:${attempt}/${MAX_ATTEMPTS} user:${userId.slice(0, 8)}`)
 
   const client = getOrCreateWaClient(userId)
-  console.log(`[WA Init] client created, calling initialize...`)
 
   if (!isClientRegistered(userId)) {
     markClientRegistered(userId)
@@ -45,12 +57,10 @@ export async function POST(req: NextRequest) {
     client.on('ready', async () => {
       releaseInitLock(userId)
       const info = client.info
-
       await admin
         .from('wa_session')
         .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
         .eq('user_id', userId)
-
       await new Promise((r) => setTimeout(r, 5000))
       try {
         const chats = await client.getChats()
@@ -86,16 +96,22 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Initialize async without blocking, but catch error
-  client.initialize().catch(async (err) => {
+  client.initialize().catch(async (err: any) => {
+    const isBrowserRunning = String(err?.message).includes('browser is already running')
+
+    if (isBrowserRunning && attempt < MAX_ATTEMPTS) {
+      console.log(`[WA Init] "browser already running" — retry ${attempt}/${MAX_ATTEMPTS - 1} user:${userId.slice(0, 8)}`)
+      await destroyWaClient(userId, `init-retry-${attempt}`)
+      await new Promise((r) => setTimeout(r, 2000))
+      return startWaSession(userId, admin, attempt + 1)
+    }
+
     releaseInitLock(userId)
-    console.error(`[WA Init Error] user: ${userId}`, err)
+    console.error(`[WA Init Error] attempt:${attempt} user: ${userId}`, err)
     await destroyWaClient(userId, 'init-catch')
     await admin
       .from('wa_session')
       .update({ status: 'disconnected', session_data: null })
       .eq('user_id', userId)
   })
-
-  return NextResponse.json({ success: true, message: 'WhatsApp client initializing...' })
 }
