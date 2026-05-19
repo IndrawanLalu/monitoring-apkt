@@ -1,3 +1,52 @@
+# Log Perubahan - 19 Mei 2026
+
+## 7. Rekap Laporan: UI Revision + UP3 Grouping + Fix Survey Count
+
+### Perubahan UI (`app/rekap-laporan/rekap-client.tsx`)
+
+**Status dikelompokkan jadi 3 grup** (konsisten dengan dashboard):
+- **Dalam Antrian** = `lapor + penugasan_regu + nyala_sementara`
+- **Sedang Ditangani** = `ditangani`
+- **Selesai** = `selesai`
+
+Berlaku di: BigStat header, GroupChips di ULP/Regu, badge status di tiap laporan aktif (`LaporanList`).
+
+**Card Callback + Survey digabung satu baris** — satu card dua kolom (biru kiri, hijau kanan), 4 stat box: Callback Hari Ini | Callback Bulan Ini | Survey Hari Ini | Survey Bulan Ini. Selalu tampil meski nilai 0.
+
+**UP3 selector di header**:
+- Dropdown `<select>` jika ada 2+ UP3 (migration sudah dijalankan)
+- Badge label statis jika hanya 1 UP3
+- Tidak tampil jika migration belum dijalankan (`up3Nama` kosong)
+
+**Fix hydration error mobile** — `rekap-client-wrapper.tsx` (`'use client'`) membungkus `RekapClient` via `next/dynamic` dengan `ssr: false`. Diperlukan karena `page.tsx` adalah Server Component sehingga tidak bisa langsung pakai `ssr: false`.
+
+### Fix Survey Count Bug (`app/rekap-laporan/page.tsx`)
+
+**Root cause**: Survey dihitung lewat `laporanUlpMap`, tapi map itu hanya berisi laporan aktif + laporan selesai **hari ini**. Survey dari laporan yang diselesaikan hari-hari sebelumnya tidak bisa di-resolve ke `ulp_id` → di-skip → count = 0.
+
+**Fix**: Query `survey_laporan` sekarang join langsung ke tabel `laporan` untuk ambil `ulp_id`:
+```typescript
+supabase.from('survey_laporan')
+  .select('laporan_id, submitted_at, laporan:laporan_id(ulp_id)')
+  .gte('submitted_at', startOfMonth)
+```
+Agregasi survey pakai `(s.laporan as any)?.ulp_id` dengan fallback ke `laporanUlpMap`.
+
+### UP3 Frontend Management (`app/(dashboard)/settings/`)
+
+**Tab baru "Kelola ULP"** — hanya muncul jika `profile.role === 'admin'` dan `profile.up3_id` non-null.
+- `ulps-tab.tsx`: CRUD ULP (Add/Edit/Delete) via API
+- `app/api/admin/ulps/route.ts`: GET + POST, scoped ke `up3_id` admin
+- `app/api/admin/ulps/[id]/route.ts`: PATCH + DELETE, guard `verifyUlpAccess`
+- DELETE diblokir jika ULP masih punya regu atau laporan
+
+**Backwards-compatible auth** (`lib/auth.ts`): `up3_id` di-fetch lewat query terpisah `.maybeSingle()` agar tidak crash jika kolom belum ada (pre-migration).
+
+### Prasyarat
+- Jalankan `supabase/migration_up3.sql` di Supabase SQL Editor untuk aktifkan fitur UP3 grouping dan Kelola ULP.
+
+---
+
 # Log Perubahan - 18 Mei 2026
 
 ## 6. Fix VPS: Multi-WA Simultaneous + PM2 Startup

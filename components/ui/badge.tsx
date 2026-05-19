@@ -18,6 +18,7 @@ const SIZE_STYLE = {
 // Adaptive colors per status — light mode uses tinted bg, dark handles via globals.css .status-*
 const STATUS_CSS_CLASS: Record<StatusLaporan, string> = {
   lapor:            'status-lapor',
+  penugasan_regu:   'status-penugasan-regu',
   ditangani:        'status-ditangani',
   nyala_sementara:  'status-nyala-sementara',
   selesai:          'status-selesai',

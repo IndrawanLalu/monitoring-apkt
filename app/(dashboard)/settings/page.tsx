@@ -69,7 +69,7 @@ export default async function SettingsPage() {
   return (
     <SettingsClient
       ulpsData={ulpsData}
-      profile={{ role: profile.role, userId: profile.id, ulps: profile.ulps }}
+      profile={{ role: profile.role, userId: profile.id, up3Id: profile.up3_id, ulps: profile.ulps }}
       waSession={waSession}
     />
   )

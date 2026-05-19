@@ -8,7 +8,6 @@ import type { Laporan, ReguStats, StatusLaporan } from '@/types'
 
 interface ReguCardProps {
   stats: ReguStats
-  onAddLaporan: (reguId: string) => void
   onKirimWa: (reguId: string) => void
   onUpdateLaporan: (laporan: Laporan) => void
   sendingWa: boolean
@@ -38,16 +37,16 @@ function formatDurasi(menit: number): string {
   return sisa > 0 ? `${jam}j ${sisa}m` : `${jam}j`
 }
 
-// Dynamic header color based on priority status
-function getHeaderColors(lapor: number, ditangani: number, nyala_sementara: number): { bg: string; text: string; glow: string } {
-  if (lapor > 0)          return { bg: '#E4002B', text: '#fff', glow: 'rgba(228,0,43,0.3)' }
-  if (ditangani > 0)      return { bg: '#0070C0', text: '#fff', glow: 'rgba(0,112,192,0.3)' }
-  if (nyala_sementara > 0) return { bg: '#F5A623', text: '#fff', glow: 'rgba(245,166,35,0.3)' }
+function getHeaderColors(lapor: number, penugasan_regu: number, ditangani: number, nyala_sementara: number): { bg: string; text: string; glow: string } {
+  if (lapor > 0)            return { bg: '#E4002B', text: '#fff', glow: 'rgba(228,0,43,0.3)' }
+  if (penugasan_regu > 0)   return { bg: '#F5A623', text: '#fff', glow: 'rgba(245,166,35,0.3)' }
+  if (ditangani > 0)        return { bg: '#0070C0', text: '#fff', glow: 'rgba(0,112,192,0.3)' }
+  if (nyala_sementara > 0)  return { bg: '#F5A623', text: '#fff', glow: 'rgba(245,166,35,0.3)' }
   return { bg: '#1DB954', text: '#fff', glow: 'rgba(29,185,84,0.3)' }
 }
 
-export function ReguCard({ stats, onAddLaporan, onKirimWa, onUpdateLaporan, sendingWa }: ReguCardProps) {
-  const { regu, petugas, laporan, lapor, ditangani, nyala_sementara, selesai } = stats
+export function ReguCard({ stats, onKirimWa, onUpdateLaporan, sendingWa }: ReguCardProps) {
+  const { regu, petugas, laporan, lapor, penugasan_regu, ditangani, nyala_sementara, selesai } = stats
   const [collapsed, setCollapsed] = useState(false)
   const [now, setNow] = useState(Date.now())
 
@@ -56,9 +55,12 @@ export function ReguCard({ stats, onAddLaporan, onKirimWa, onUpdateLaporan, send
     return () => clearInterval(interval)
   }, [])
 
-  const aktivLaporan = laporan.filter((l) => l.status !== 'selesai')
+  const aktivLaporan = laporan
+    .filter((l) => l.status !== 'selesai')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const antrian = lapor + penugasan_regu + nyala_sementara
   const namaPetugas = petugas.map((p) => p.nama).join(' & ') || '—'
-  const { bg: headerBg, text: headerText, glow: headerGlow } = getHeaderColors(lapor, ditangani, nyala_sementara)
+  const { bg: headerBg, text: headerText, glow: headerGlow } = getHeaderColors(lapor, penugasan_regu, ditangani, nyala_sementara)
 
   return (
     <div
@@ -109,14 +111,13 @@ export function ReguCard({ stats, onAddLaporan, onKirimWa, onUpdateLaporan, send
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(3, 1fr)',
           borderBottom: '1px solid var(--border)',
           textAlign: 'center',
         }}
       >
-        <MiniStat label="Lapor" value={lapor} color="#E4002B" />
-        <MiniStat label="Proses" value={ditangani} color="#0070C0" />
-        <MiniStat label="Hold" value={nyala_sementara} color="#F5A623" />
+        <MiniStat label="Antrian" value={antrian} color="#E4002B" />
+        <MiniStat label="Sedang Ditangani" value={ditangani} color="#0070C0" />
         <MiniStat label="Selesai" value={selesai} color="#1DB954" />
       </div>
 
@@ -195,28 +196,17 @@ export function ReguCard({ stats, onAddLaporan, onKirimWa, onUpdateLaporan, send
         style={{
           padding: '8px 10px',
           borderTop: '1px solid var(--border)',
-          display: 'flex',
-          gap: 6,
           backgroundColor: 'var(--bg-surface-2)',
         }}
       >
         <Button
-          variant="primary"
-          size="sm"
-          style={{ flex: 1, fontSize: 12 }}
-          onClick={() => onAddLaporan(regu.id)}
-        >
-          + Laporan
-        </Button>
-        <Button
           variant="yellow"
           size="sm"
-          style={{ flex: 1, fontSize: 12 }}
+          style={{ width: '100%', fontSize: 12 }}
           loading={sendingWa}
           onClick={() => onKirimWa(regu.id)}
-          title="Kirim semua laporan aktif regu ini ke WA grup"
         >
-          📤 WA
+          📤 Kirim semua laporan ke WA Group
         </Button>
       </div>
     </div>

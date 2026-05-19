@@ -7,6 +7,7 @@ import { ReguTab } from "./regu-tab";
 import { PetugasTab } from "./petugas-tab";
 import { CallbackTemplateTab } from "./callback-template-tab";
 import { UsersTab } from "./users-tab";
+import { UlpsTab } from "./ulps-tab";
 import { ImportTab } from "./import-tab";
 
 interface WaSession {
@@ -30,12 +31,13 @@ interface Props {
   profile: {
     role: string;
     userId?: string;
+    up3Id?: string | null;
     ulps?: { id: string; nama: string; kode: string }[];
   };
   waSession: WaSession | null;
 }
 
-type Tab = "wa" | "regu" | "petugas" | "callback" | "users" | "import";
+type Tab = "wa" | "regu" | "petugas" | "callback" | "users" | "ulps" | "import";
 
 export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Props) {
   const [tab, setTab] = useState<Tab>("wa");
@@ -85,6 +87,7 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
     { key: "petugas",  label: "👤 Petugas"           },
     { key: "callback", label: "📞 Template Callback" },
     ...(profile.role === "admin" ? [{ key: "users" as Tab, label: "👥 Manajemen User CC" }] : []),
+    ...(profile.role === "admin" && profile.up3Id ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
     ...(profile.role === "admin" ? [{ key: "import" as Tab, label: "📥 Import Petugas" }] : []),
   ];
 
@@ -193,6 +196,9 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
         )}
         {tab === "users" && (
           <UsersTab ulps={profile.ulps ?? []} onToast={showToast} />
+        )}
+        {tab === "ulps" && (
+          <UlpsTab onToast={showToast} />
         )}
         {tab === "import" && (
           <ImportTab

@@ -37,11 +37,6 @@ function parseApkt(text: string): Partial<CreateLaporanInput> {
     const cols = line.split('\t')
     if (cols.length >= 4) {
       if (cols[0]?.trim()) result.nama_pelanggan = cols[0].trim()
-      const apktStatus = cols[2]?.trim().toLowerCase() ?? ''
-      if (apktStatus.includes('nyala sementara')) result.status = 'nyala_sementara'
-      else if (apktStatus === 'nyala') result.status = 'selesai'
-      else if (['penugasan regu', 'dalam perjalanan', 'dalam pengerjaan'].includes(apktStatus)) result.status = 'ditangani'
-      else result.status = 'lapor'
       if (cols[3]?.trim()) result.lokasi = cols[3].trim()
       if (cols[6]?.trim()) result.nomor_pelanggan = cols[6].trim()
       if (cols[7]?.trim()) result.keterangan = cols[7].trim()
@@ -221,7 +216,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
   const [done, setDone] = useState<{ values: CreateLaporanInput; namaRegu: string; magicToken: string; nomorHpRegu: string; reguUlpNama: string } | null>(null)
   const [values, setValues] = useState<CreateLaporanInput>({
     nomor_tiket: '', regu_id: '', nama_pelanggan: '', nomor_pelanggan: '',
-    lokasi: '', keterangan: '', created_at: undefined, status: 'lapor',
+    lokasi: '', keterangan: '', created_at: undefined, status: 'penugasan_regu',
   })
 
   function set<K extends keyof CreateLaporanInput>(key: K, value: CreateLaporanInput[K]) {
@@ -301,7 +296,7 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
   }
 
   function handleReset() {
-    setValues({ nomor_tiket: '', regu_id: '', nama_pelanggan: '', nomor_pelanggan: '', lokasi: '', keterangan: '', created_at: undefined, status: 'lapor' })
+    setValues({ nomor_tiket: '', regu_id: '', nama_pelanggan: '', nomor_pelanggan: '', lokasi: '', keterangan: '', created_at: undefined, status: 'penugasan_regu' })
     setPasteText(''); setShowPaste(true); setDone(null)
   }
 
@@ -389,12 +384,8 @@ export function CallbackClient({ reguList, ulpId, ulpNama, template, noActivePik
               </div>
 
               <div style={{ gridColumn: '1 / -1' }}>
-                <Select label="Status Awal" value={values.status ?? 'lapor'} onChange={(e) => set('status', e.target.value as CreateLaporanInput['status'])}>
-                  <option value="lapor">Lapor</option>
-                  <option value="ditangani">Sedang Ditangani</option>
-                  <option value="nyala_sementara">Nyala Sementara</option>
-                  <option value="selesai">Selesai</option>
-                </Select>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 }}>Status</label>
+                <span className="badge status-penugasan-regu" style={{ fontSize: 12, padding: '4px 12px' }}>👷 Penugasan Regu</span>
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <Input label="Nama Pelanggan *" placeholder="Budi Santoso" value={values.nama_pelanggan} onChange={(e) => set('nama_pelanggan', e.target.value)} error={fieldErrors.nama_pelanggan} />

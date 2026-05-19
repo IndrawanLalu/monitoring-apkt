@@ -1,5 +1,6 @@
 export const STATUS_LAPORAN = {
   LAPOR: 'lapor',
+  PENUGASAN_REGU: 'penugasan_regu',
   DITANGANI: 'ditangani',
   NYALA_SEMENTARA: 'nyala_sementara',
   SELESAI: 'selesai',
@@ -9,6 +10,7 @@ export type StatusLaporan = (typeof STATUS_LAPORAN)[keyof typeof STATUS_LAPORAN]
 
 export const STATUS_LABEL: Record<StatusLaporan, string> = {
   lapor: 'Lapor',
+  penugasan_regu: 'Penugasan Regu',
   ditangani: 'Sedang Ditangani',
   nyala_sementara: 'Nyala Sementara',
   selesai: 'Selesai',
@@ -16,6 +18,7 @@ export const STATUS_LABEL: Record<StatusLaporan, string> = {
 
 export const STATUS_EMOJI: Record<StatusLaporan, string> = {
   lapor: '🔴',
+  penugasan_regu: '🟤',
   ditangani: '🟡',
   nyala_sementara: '🟠',
   selesai: '✅',
@@ -23,6 +26,7 @@ export const STATUS_EMOJI: Record<StatusLaporan, string> = {
 
 export const STATUS_COLOR: Record<StatusLaporan, { bg: string; text: string; css: string }> = {
   lapor: { bg: '#E4002B', text: '#FFFFFF', css: 'status-lapor' },
+  penugasan_regu: { bg: '#F5A623', text: '#FFFFFF', css: 'status-penugasan-regu' },
   ditangani: { bg: '#0070C0', text: '#FFFFFF', css: 'status-ditangani' },
   nyala_sementara: { bg: '#FFD200', text: '#1A1A1A', css: 'status-nyala-sementara' },
   selesai: { bg: '#1DB954', text: '#FFFFFF', css: 'status-selesai' },

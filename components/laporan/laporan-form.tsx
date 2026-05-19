@@ -48,7 +48,8 @@ function parseApkt(text: string): Partial<CreateLaporanInput> {
       const apktStatus = cols[2]?.trim().toLowerCase() ?? ''
       if (apktStatus.includes('nyala sementara')) result.status = 'nyala_sementara'
       else if (apktStatus === 'nyala') result.status = 'selesai'
-      else if (['penugasan regu', 'dalam perjalanan', 'dalam pengerjaan'].includes(apktStatus)) result.status = 'ditangani'
+      else if (apktStatus === 'penugasan regu') result.status = 'penugasan_regu'
+      else if (['dalam perjalanan', 'dalam pengerjaan'].includes(apktStatus)) result.status = 'ditangani'
       else result.status = 'lapor'
 
       if (cols[3]?.trim()) result.lokasi = cols[3].trim()
@@ -203,6 +204,7 @@ export function LaporanForm({ reguList, defaultReguId, onSubmit, onCancel }: Lap
             onChange={(e) => set('status', e.target.value as CreateLaporanInput['status'])}
           >
             <option value="lapor">Lapor</option>
+            <option value="penugasan_regu">Penugasan Regu</option>
             <option value="ditangani">Sedang Ditangani</option>
             <option value="nyala_sementara">Nyala Sementara</option>
             <option value="selesai">Selesai</option>

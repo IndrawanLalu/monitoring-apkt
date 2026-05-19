@@ -4,14 +4,12 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReguCard } from '@/components/dashboard/regu-card'
 import { Modal } from '@/components/ui/modal'
-import { LaporanForm } from '@/components/laporan/laporan-form'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
 import { StatusBadge } from '@/components/ui/badge'
 import { useRealtimeLaporan } from '@/hooks/use-realtime-laporan'
 import { STATUS_LABEL, SHIFT_LABEL, SHIFT_JAM } from '@/constants'
 import type { Laporan, Regu, Petugas, Piket, ReguStats, ShiftType, StatusLaporan } from '@/types'
-import type { CreateLaporanInput } from '@/lib/validations/laporan'
 
 interface UlpInfo {
   id: string
@@ -33,12 +31,6 @@ interface Props {
   today: string
 }
 
-interface AddModalCtx {
-  reguId: string
-  ulpId: string
-  piketId: string | null
-  reguList: Regu[]
-}
 
 export function DashboardClient({ ulpDataList, today }: Props) {
   const router = useRouter()
@@ -51,7 +43,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     () => Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList]))
   )
 
-  const [addModal, setAddModal] = useState<AddModalCtx | null>(null)
   const [updateModal, setUpdateModal] = useState<Laporan | null>(null)
   const [updateStatus, setUpdateStatus] = useState<StatusLaporan>('lapor')
   const [updateKeterangan, setUpdateKeterangan] = useState('')
@@ -116,10 +107,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
   useRealtimeLaporan({ ulpIds, onInsert: handleRealtimeInsert, onUpdate: handleRealtimeUpdate })
 
-  function openAddLaporan(reguId: string, ulpId: string, piketId: string | null, reguList: Regu[]) {
-    setAddModal({ reguId, ulpId, piketId, reguList })
-  }
-
   function openUpdateLaporan(laporan: Laporan) {
     setUpdateModal(laporan)
     setUpdateStatus(laporan.status)
@@ -130,23 +117,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     setUpdateModal(null)
     setUpdateKeterangan('')
   }
-
-  const handleAddLaporan = useCallback(async (data: CreateLaporanInput): Promise<{ error?: string }> => {
-    if (!addModal) return { error: 'No context' }
-    const res = await fetch('/api/laporan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, ulp_id: addModal.ulpId, piket_id: addModal.piketId }),
-    })
-    const json = await res.json()
-    if (!res.ok || json.error) return { error: json.error ?? 'Gagal menyimpan laporan' }
-    setLaporanMap((prev) => ({
-      ...prev,
-      [addModal.ulpId]: [json.data, ...(prev[addModal.ulpId] ?? [])],
-    }))
-    setAddModal(null)
-    return {}
-  }, [addModal])
 
   async function handleSubmitUpdate() {
     if (!updateModal) return
@@ -205,6 +175,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
       laporan: regLaporan,
       total: regLaporan.length,
       lapor: regLaporan.filter((l) => l.status === 'lapor').length,
+      penugasan_regu: regLaporan.filter((l) => l.status === 'penugasan_regu').length,
       ditangani: regLaporan.filter((l) => l.status === 'ditangani').length,
       nyala_sementara: regLaporan.filter((l) => l.status === 'nyala_sementara').length,
       selesai: regLaporan.filter((l) => l.status === 'selesai').length,
@@ -212,6 +183,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
   })
 
   const totalLapor = reguStats.reduce((s, r) => s + r.lapor, 0)
+  const totalPenugasanRegu = reguStats.reduce((s, r) => s + r.penugasan_regu, 0)
   const totalDitangani = reguStats.reduce((s, r) => s + r.ditangani, 0)
   const totalNyalaSementara = reguStats.reduce((s, r) => s + r.nyala_sementara, 0)
   const totalSelesai = reguStats.reduce((s, r) => s + r.selesai, 0)
@@ -309,6 +281,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
             </div>
             <div className="flex items-center gap-1">
               <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
+              <UlpStatChip label="R" value={totalPenugasanRegu} bg="#F5A623" />
               <UlpStatChip label="P" value={totalDitangani} bg="#0070C0" bordered />
               <UlpStatChip label="H" value={totalNyalaSementara} bg="#FFD200" textDark />
               <UlpStatChip label="S" value={totalSelesai} bg="#1DB954" />
@@ -345,7 +318,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                   <div key={stats.regu.id} style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', borderLeft: i > 0 ? '1px solid var(--border)' : 'none' }}>
                     <ReguCard
                       stats={stats}
-                      onAddLaporan={(reguId) => openAddLaporan(reguId, ulp.id, piket?.id ?? null, reguList)}
                       onKirimWa={handleKirimWa}
                       onUpdateLaporan={openUpdateLaporan}
                       sendingWa={sendingWa === stats.regu.id}
@@ -383,18 +355,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
           )
         })()}
       </div>
-
-      {/* Add Laporan Modal */}
-      <Modal open={!!addModal} onClose={() => setAddModal(null)} title="Input Laporan Baru">
-        {addModal && (
-          <LaporanForm
-            reguList={addModal.reguList}
-            defaultReguId={addModal.reguId}
-            onSubmit={handleAddLaporan}
-            onCancel={() => setAddModal(null)}
-          />
-        )}
-      </Modal>
 
       {/* Update Status Modal */}
       <Modal

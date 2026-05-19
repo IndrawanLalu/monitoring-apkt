@@ -131,6 +131,7 @@ export interface ReguStats {
   laporan: Laporan[]
   total: number
   lapor: number
+  penugasan_regu: number
   ditangani: number
   nyala_sementara: number
   selesai: number
@@ -141,6 +142,7 @@ export interface DashboardData {
   reguStats: ReguStats[]
   totalLaporan: number
   totalLapor: number
+  totalPenugasanRegu: number
   totalDitangani: number
   totalNyalaSementara: number
   totalSelesai: number

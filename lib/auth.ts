@@ -14,6 +14,7 @@ export interface UserProfile {
   id: string
   nama: string
   role: string
+  up3_id: string | null
   ulps: UlpInfo[]
   activeUlp: UlpInfo
 }
@@ -25,12 +26,15 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   const admin = createAdminClient()
 
-  const [{ data: profile }, { data: userUlps }] = await Promise.all([
+  // Fetch profile (tanpa up3_id agar aman sebelum migration), user_ulp, dan up3_id secara paralel.
+  // up3_id di-fetch terpisah: jika kolom belum ada (pre-migration), query gagal → up3Row = null → up3_id = null.
+  const [{ data: profile }, { data: userUlps }, { data: up3Row }] = await Promise.all([
     admin.from('profiles').select('nama, role').eq('id', user.id).single(),
     admin
       .from('user_ulp')
       .select('ulp:ulp(id, nama, kode, wa_grup_id)')
       .eq('user_id', user.id),
+    admin.from('profiles').select('up3_id').eq('id', user.id).maybeSingle(),
   ])
 
   if (!profile) return null
@@ -50,6 +54,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     id: user.id,
     nama: profile.nama,
     role: profile.role,
+    up3_id: (up3Row as any)?.up3_id ?? null,
     ulps,
     activeUlp,
   }

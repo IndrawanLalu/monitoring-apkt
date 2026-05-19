@@ -10,7 +10,7 @@ export const createLaporanSchema = z.object({
   keterangan: z.string().max(500).nullable().optional(),
   piket_id: z.string().uuid().nullable().optional(),
   created_at: z.string().datetime().optional(),
-  status: z.enum(['lapor', 'ditangani', 'nyala_sementara', 'selesai']).optional(),
+  status: z.enum(['lapor', 'penugasan_regu', 'ditangani', 'nyala_sementara', 'selesai']).optional(),
 })
 
 export const ccCallbackLaporanSchema = z.object({
@@ -20,7 +20,7 @@ export const ccCallbackLaporanSchema = z.object({
   lokasi: z.string().min(1, 'Lokasi wajib diisi').max(200),
   keterangan: z.string().max(500).nullable().optional(),
   created_at: z.string().datetime().optional(),
-  status: z.enum(['lapor', 'ditangani', 'nyala_sementara', 'selesai']).optional(),
+  status: z.enum(['lapor', 'penugasan_regu', 'ditangani', 'nyala_sementara', 'selesai']).optional(),
   status_callback: z.string().optional(),
 })
 
@@ -28,6 +28,7 @@ export const updateStatusSchema = z.object({
   laporan_id: z.string().uuid('ID laporan tidak valid'),
   status: z.enum([
     STATUS_LAPORAN.LAPOR,
+    STATUS_LAPORAN.PENUGASAN_REGU,
     STATUS_LAPORAN.DITANGANI,
     STATUS_LAPORAN.NYALA_SEMENTARA,
     STATUS_LAPORAN.SELESAI,

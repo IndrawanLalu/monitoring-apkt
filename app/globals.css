@@ -309,6 +309,15 @@ body {
   color: #FFD200;
 }
 
+.status-penugasan-regu {
+  background-color: rgba(245, 166, 35, 0.15);
+  color: #B36D00;
+}
+.dark .status-penugasan-regu {
+  background-color: rgba(245, 166, 35, 0.2);
+  color: #F5A623;
+}
+
 .status-selesai {
   background-color: rgba(29, 185, 84, 0.12);
   color: #15803d;

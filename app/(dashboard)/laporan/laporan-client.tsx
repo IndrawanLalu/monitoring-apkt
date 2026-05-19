@@ -53,7 +53,7 @@ export function LaporanClient({ initialLaporan, reguList, shiftTypes, initialFil
 
   const statusCount = initialLaporan.reduce<Record<StatusLaporan, number>>(
     (acc, l) => { acc[l.status] = (acc[l.status] ?? 0) + 1; return acc },
-    { lapor: 0, ditangani: 0, nyala_sementara: 0, selesai: 0 },
+    { lapor: 0, penugasan_regu: 0, ditangani: 0, nyala_sementara: 0, selesai: 0 },
   )
 
   return (
