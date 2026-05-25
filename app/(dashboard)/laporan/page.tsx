@@ -18,8 +18,9 @@ export default async function LaporanPage({
   // Tanggal default: hari ini dalam WITA (UTC+8)
   const selectedDate = tanggalParam ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+  if (!profile.activeUlp) redirect('/settings')
   const supabase = await createClient()
-  const ulpId = profile.activeUlp.id
+  const ulpId = profile.activeUlp!.id
 
   const [{ data: reguList }, { data: shiftTypes }] = await Promise.all([
     supabase.from('regu').select('id, nama').eq('ulp_id', ulpId).order('nama'),

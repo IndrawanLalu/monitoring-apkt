@@ -27,25 +27,16 @@ export default async function SettingsPage() {
   const ulpIds = profile.ulps.map((u) => u.id)
 
   const [{ data: reguList }, { data: petugasList }, { data: waSession }, { data: ulpsRaw }] = await Promise.all([
-    admin
-      .from('regu')
-      .select('id, ulp_id, nama, nomor_hp, created_at')
-      .in('ulp_id', ulpIds)
-      .order('nama'),
-    admin
-      .from('petugas_apkt')
-      .select('id, ulp_id, regu_id, nama, nomor_hp, created_at')
-      .in('ulp_id', ulpIds)
-      .order('nama'),
-    admin
-      .from('wa_session')
-      .select('id, user_id, status, session_data, updated_at')
-      .eq('user_id', profile.id)
-      .maybeSingle(),
-    admin
-      .from('ulp')
-      .select('id, wa_template_callback, wa_grup_id')
-      .in('id', ulpIds),
+    ulpIds.length > 0
+      ? admin.from('regu').select('id, ulp_id, nama, nomor_hp, created_at').in('ulp_id', ulpIds).order('nama')
+      : Promise.resolve({ data: [] as any[] }),
+    ulpIds.length > 0
+      ? admin.from('petugas_apkt').select('id, ulp_id, regu_id, nama, nomor_hp, created_at').in('ulp_id', ulpIds).order('nama')
+      : Promise.resolve({ data: [] as any[] }),
+    admin.from('wa_session').select('id, user_id, status, session_data, updated_at').eq('user_id', profile.id).maybeSingle(),
+    ulpIds.length > 0
+      ? admin.from('ulp').select('id, wa_template_callback, wa_grup_id').in('id', ulpIds)
+      : Promise.resolve({ data: [] as any[] }),
   ])
 
   const ulpSettingsMap = new Map(

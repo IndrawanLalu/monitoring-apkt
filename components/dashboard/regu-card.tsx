@@ -10,6 +10,7 @@ interface ReguCardProps {
   stats: ReguStats
   onKirimWa: (reguId: string) => void
   onUpdateLaporan: (laporan: Laporan) => void
+  onTambahLaporan: (reguId: string) => void
   sendingWa: boolean
 }
 
@@ -45,7 +46,7 @@ function getHeaderColors(lapor: number, penugasan_regu: number, ditangani: numbe
   return { bg: '#1DB954', text: '#fff', glow: 'rgba(29,185,84,0.3)' }
 }
 
-export function ReguCard({ stats, onKirimWa, onUpdateLaporan, sendingWa }: ReguCardProps) {
+export function ReguCard({ stats, onKirimWa, onUpdateLaporan, onTambahLaporan, sendingWa }: ReguCardProps) {
   const { regu, petugas, laporan, lapor, penugasan_regu, ditangani, nyala_sementara, selesai } = stats
   const [collapsed, setCollapsed] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -197,16 +198,26 @@ export function ReguCard({ stats, onKirimWa, onUpdateLaporan, sendingWa }: ReguC
           padding: '8px 10px',
           borderTop: '1px solid var(--border)',
           backgroundColor: 'var(--bg-surface-2)',
+          display: 'flex',
+          gap: 6,
         }}
       >
         <Button
+          variant="primary"
+          size="sm"
+          style={{ fontSize: 12, flexShrink: 0, backgroundColor: '#E4002B', borderColor: '#E4002B' }}
+          onClick={() => onTambahLaporan(regu.id)}
+        >
+          ＋ Laporan
+        </Button>
+        <Button
           variant="yellow"
           size="sm"
-          style={{ width: '100%', fontSize: 12 }}
+          style={{ flex: 1, fontSize: 12 }}
           loading={sendingWa}
           onClick={() => onKirimWa(regu.id)}
         >
-          📤 Kirim semua laporan ke WA Group
+          📤 Kirim ke WA Group
         </Button>
       </div>
     </div>

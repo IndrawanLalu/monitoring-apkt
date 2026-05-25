@@ -22,14 +22,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: existing } = await admin
     .from('laporan')
-    .select('id, status, keterangan, ulp_id')
+    .select('id, status, keterangan, ulp_id, regu_id')
     .eq('id', id)
     .single()
 
   if (!existing) return NextResponse.json({ data: null, error: 'Laporan tidak ditemukan' }, { status: 404 })
 
-  // Cari piket aktif saat ini untuk dicatat sebagai resolved_piket_id
+  // Saat selesai: cari piket aktif + snapshot nama petugas regu
   let resolved_piket_id: string | null = null
+  let resolved_petugas_names: string[] | null = null
+
   if (parsed.data.status === 'selesai') {
     const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
     const today = nowWita.toISOString().split('T')[0]
@@ -51,6 +53,32 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     })
 
     resolved_piket_id = activePiket?.id ?? null
+
+    // Snapshot nama petugas: dari piket_petugas jika ada piket aktif,
+    // fallback ke semua petugas di regu
+    if (existing.regu_id) {
+      if (resolved_piket_id) {
+        const { data: pp } = await admin
+          .from('piket_petugas')
+          .select('petugas:petugas_apkt(nama)')
+          .eq('piket_id', resolved_piket_id)
+          .eq('regu_id', existing.regu_id)
+        const names = (pp ?? [])
+          .map(r => (r.petugas as unknown as { nama: string } | null)?.nama)
+          .filter((n): n is string => !!n)
+        resolved_petugas_names = names.length > 0 ? names : null
+      }
+
+      // Fallback: ambil semua petugas di regu jika piket kosong
+      if (!resolved_petugas_names) {
+        const { data: rp } = await admin
+          .from('petugas_apkt')
+          .select('nama')
+          .eq('regu_id', existing.regu_id)
+        const names = (rp ?? []).map(r => r.nama as string).filter(Boolean)
+        resolved_petugas_names = names.length > 0 ? names : null
+      }
+    }
   }
 
   const { data: laporan, error } = await admin
@@ -60,6 +88,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       keterangan: parsed.data.keterangan !== undefined ? parsed.data.keterangan : existing.keterangan,
       resolved_at: parsed.data.status === 'selesai' ? new Date().toISOString() : null,
       resolved_piket_id: parsed.data.status === 'selesai' ? resolved_piket_id : null,
+      resolved_petugas_names: parsed.data.status === 'selesai' ? resolved_petugas_names : null,
     })
     .eq('id', id)
     .select('*')

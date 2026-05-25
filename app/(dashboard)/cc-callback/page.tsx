@@ -8,11 +8,12 @@ export const dynamic = 'force-dynamic'
 export default async function CcCallbackPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  if (!profile.activeUlp) redirect('/settings')
 
   return (
     <CcCallbackClient
-      ulpNama={String(profile.activeUlp.nama)}
-      ulpId={String(profile.activeUlp.id)}
+      ulpNama={String(profile.activeUlp!.nama)}
+      ulpId={String(profile.activeUlp!.id)}
     />
   )
 }

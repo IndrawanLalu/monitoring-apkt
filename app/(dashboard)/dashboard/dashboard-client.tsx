@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReguCard } from '@/components/dashboard/regu-card'
+import { TambahLaporanModal, type ReguForModal } from '@/components/dashboard/tambah-laporan-modal'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
@@ -21,9 +22,10 @@ interface UlpInfo {
 interface UlpData {
   ulp: UlpInfo
   piket: (Piket & { shift_type: { id: string; nama: ShiftType; jam_mulai: string; jam_selesai: string } }) | null
-  reguList: Regu[]
+  reguList: (Regu & { nomor_hp: string | null })[]
   petugasList: Petugas[]
   laporanList: Laporan[]
+  template: string
 }
 
 interface Props {
@@ -43,6 +45,8 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     () => Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList]))
   )
 
+  const [showTambahLaporan, setShowTambahLaporan] = useState(false)
+  const [preselectedReguId, setPreselectedReguId] = useState<string | undefined>(undefined)
   const [updateModal, setUpdateModal] = useState<Laporan | null>(null)
   const [updateStatus, setUpdateStatus] = useState<StatusLaporan>('lapor')
   const [updateKeterangan, setUpdateKeterangan] = useState('')
@@ -136,6 +140,11 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     }
     setUpdating(false)
     closeUpdateModal()
+  }
+
+  function handleTambahLaporan(reguId: string) {
+    setPreselectedReguId(reguId)
+    setShowTambahLaporan(true)
   }
 
   async function handleKirimWa(reguId: string) {
@@ -286,6 +295,13 @@ export function DashboardClient({ ulpDataList, today }: Props) {
               <UlpStatChip label="H" value={totalNyalaSementara} bg="#FFD200" textDark />
               <UlpStatChip label="S" value={totalSelesai} bg="#1DB954" />
             </div>
+            <button
+              onClick={() => setShowTambahLaporan(true)}
+              className="px-2 py-0.5 text-xs font-bold border border-white/40 text-white hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: '#E4002B' }}
+            >
+              ＋ Laporan
+            </button>
             {piket && (
               <button
                 disabled={sendingRekap === ulp.id}
@@ -320,6 +336,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                       stats={stats}
                       onKirimWa={handleKirimWa}
                       onUpdateLaporan={openUpdateLaporan}
+                      onTambahLaporan={handleTambahLaporan}
                       sendingWa={sendingWa === stats.regu.id}
                     />
                   </div>
@@ -355,6 +372,19 @@ export function DashboardClient({ ulpDataList, today }: Props) {
           )
         })()}
       </div>
+
+      {/* Tambah Laporan Modal */}
+      <TambahLaporanModal
+        open={showTambahLaporan}
+        onClose={() => { setShowTambahLaporan(false); setPreselectedReguId(undefined) }}
+        reguList={ulpDataList.flatMap((d) =>
+          d.reguList.map((r): ReguForModal => ({ ...r, ulpNama: d.ulp.nama }))
+        )}
+        ulpId={ulp.id}
+        ulpNama={ulp.nama}
+        template={selectedData.template}
+        defaultReguId={preselectedReguId}
+      />
 
       {/* Update Status Modal */}
       <Modal

@@ -32,9 +32,10 @@ function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): bool
 export default async function CallbackPage() {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  if (!profile.activeUlp) redirect('/settings')
 
   const admin = createAdminClient()
-  const ulpId = profile.activeUlp.id
+  const ulpId = profile.activeUlp!.id
 
   // Jam & tanggal WITA (UTC+8)
   const nowWita = new Date(Date.now() + 8 * 60 * 60 * 1000)
@@ -116,7 +117,7 @@ export default async function CallbackPage() {
     <CallbackClient
       reguList={reguList}
       ulpId={String(ulpId)}
-      ulpNama={String(profile.activeUlp.nama)}
+      ulpNama={String(profile.activeUlp!.nama)}
       template={template}
       noActivePiket={noActivePiket}
     />

@@ -20,13 +20,15 @@ export default async function DashboardLayout({
   const today = nowWita.toISOString().split('T')[0]
 
   const ulpIds = profile.ulps.map((u) => u.id)
-  
+
   // Ambil semua piket hari ini untuk semua ULP user
-  const { data: pikets } = await supabase
-    .from('piket')
-    .select('id, shift_type(id, jam_mulai, jam_selesai)')
-    .in('ulp_id', ulpIds)
-    .eq('tanggal', today)
+  const { data: pikets } = ulpIds.length > 0
+    ? await supabase
+        .from('piket')
+        .select('id, shift_type(id, jam_mulai, jam_selesai)')
+        .in('ulp_id', ulpIds)
+        .eq('tanggal', today)
+    : { data: [] }
 
   // Kumpulkan semua shift yang dikaitkan dengan piket hari ini
   const activeShifts = (pikets ?? []).map(p => {

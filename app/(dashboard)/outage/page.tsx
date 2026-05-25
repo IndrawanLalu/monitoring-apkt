@@ -21,6 +21,7 @@ export default async function OutagePage({
 
   const admin = createAdminClient()
   const ulpIds = profile.ulps.map(u => u.id)
+  if (ulpIds.length === 0) redirect('/settings')
   const selectedUlpId = sp.ulp_id && ulpIds.includes(sp.ulp_id) ? sp.ulp_id : null
   const filteredUlpIds = selectedUlpId ? [selectedUlpId] : ulpIds
 
@@ -36,7 +37,7 @@ export default async function OutagePage({
   // Fetch laporan selesai in period
   const { data: laporanRaw } = await admin
     .from('laporan')
-    .select('id, nomor_tiket, ulp_id, regu_id, piket_id, resolved_piket_id, lokasi, resolved_at, created_at')
+    .select('id, nomor_tiket, ulp_id, regu_id, piket_id, resolved_piket_id, resolved_petugas_names, lokasi, resolved_at, created_at')
     .eq('status', 'selesai')
     .in('ulp_id', filteredUlpIds)
     .gte('resolved_at', startDate)
@@ -104,10 +105,13 @@ export default async function OutagePage({
   }
 
   // For each laporan, get petugas names.
-  // Primary: resolved_piket_id + regu_id (piket aktif saat diselesaikan).
-  // Fallback 1: piket_id + regu_id (data lama sebelum fitur resolved_piket_id).
-  // Fallback 2: semua petugas di regu (jika piket_petugas belum diisi).
+  // Primary: resolved_petugas_names snapshot (data baru, permanen).
+  // Fallback 1: resolved_piket_id + regu_id (data lama sebelum fitur snapshot).
+  // Fallback 2: piket_id + regu_id.
+  // Fallback 3: semua petugas di regu.
   const getLaporanPetugas = (l: typeof laporan[0]): string[] => {
+    const snap = l.resolved_petugas_names as string[] | null
+    if (snap && snap.length > 0) return snap
     if (l.regu_id) {
       const resolvedPiketId = l.resolved_piket_id ?? l.piket_id
       if (resolvedPiketId) {

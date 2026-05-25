@@ -16,7 +16,7 @@ export interface UserProfile {
   role: string
   up3_id: string | null
   ulps: UlpInfo[]
-  activeUlp: UlpInfo
+  activeUlp: UlpInfo | null
 }
 
 export const getProfile = cache(async function getProfile(): Promise<UserProfile | null> {
@@ -26,8 +26,6 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   const admin = createAdminClient()
 
-  // Fetch profile (tanpa up3_id agar aman sebelum migration), user_ulp, dan up3_id secara paralel.
-  // up3_id di-fetch terpisah: jika kolom belum ada (pre-migration), query gagal → up3Row = null → up3_id = null.
   const [{ data: profile }, { data: userUlps }, { data: up3Row }] = await Promise.all([
     admin.from('profiles').select('nama, role').eq('id', user.id).single(),
     admin
@@ -43,18 +41,20 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     .map((row) => row.ulp as unknown as UlpInfo)
     .filter(Boolean)
 
-  if (ulps.length === 0) return null
+  const up3Id = (up3Row as any)?.up3_id ?? null
 
-  // Baca active ULP dari cookie, default ke ULP pertama
+  // Admin dengan up3_id boleh login meski belum punya ULP (untuk setup ULP pertama via Settings)
+  if (ulps.length === 0 && !(profile.role === 'admin' && up3Id)) return null
+
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value
-  const activeUlp = ulps.find((u) => u.id === activeUlpId) ?? ulps[0]
+  const activeUlp = ulps.find((u) => u.id === activeUlpId) ?? ulps[0] ?? null
 
   return {
     id: user.id,
     nama: profile.nama,
     role: profile.role,
-    up3_id: (up3Row as any)?.up3_id ?? null,
+    up3_id: up3Id,
     ulps,
     activeUlp,
   }
