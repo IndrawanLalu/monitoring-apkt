@@ -2,7 +2,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
   const { createAdminClient } = await import('./lib/supabase/admin')
-  const { getOrCreateWaClient, isClientRegistered, markClientRegistered, destroyWaClient, hasWaSession } = await import('./lib/wa/client')
+  const { isClientRegistered, destroyWaClient, hasWaSession } = await import('./lib/wa/client')
+  const { startWaSession } = await import('./lib/wa/session')
 
   const admin = createAdminClient()
 
@@ -22,50 +23,6 @@ export async function register() {
     }
 
     console.log(`[WA] Auto-reconnect user ${user_id}`)
-    markClientRegistered(user_id)
-
-    const client = getOrCreateWaClient(user_id)
-
-    client.on('ready', async () => {
-      const info = client.info
-      await admin
-        .from('wa_session')
-        .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
-        .eq('user_id', user_id)
-
-      await new Promise((r) => setTimeout(r, 5000))
-      try {
-        const chats = await client.getChats()
-        const groups = chats
-          .filter((c) => c.isGroup)
-          .map((c) => ({ nama: c.name, id: c.id._serialized }))
-        await admin
-          .from('wa_session')
-          .update({ session_data: { wa_number: info?.wid?.user, groups } })
-          .eq('user_id', user_id)
-      } catch (err) {
-        console.error('[WA getChats error]', err)
-      }
-    })
-
-    client.on('disconnected', async () => {
-      await destroyWaClient(user_id, 'instrumentation-disconnected')
-      await admin
-        .from('wa_session')
-        .update({ status: 'disconnected', session_data: null })
-        .eq('user_id', user_id)
-    })
-
-    client.on('auth_failure', async () => {
-      console.error(`[WA] Auto-reconnect auth failure user ${user_id}`)
-      await destroyWaClient(user_id, 'instrumentation-auth_failure')
-      await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', user_id)
-    })
-
-    client.initialize().catch(async (err) => {
-      console.error(`[WA] Auto-reconnect error user ${user_id}:`, err)
-      await destroyWaClient(user_id, 'instrumentation-catch')
-      await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', user_id)
-    })
+    startWaSession(user_id, admin, 1)
   }
 }
