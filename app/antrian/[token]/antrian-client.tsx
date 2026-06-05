@@ -22,7 +22,7 @@ export interface AntrianData {
   queue?: QueueItem[]
 }
 
-const REFRESH_INTERVAL = 15
+const REFRESH_INTERVAL = 120
 const PLN_BLUE = '#003B8E'
 
 // ─── Survey Form ─────────────────────────────────────────────
