@@ -183,7 +183,8 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
       }
 
       if (newPikets.length > 0) {
-        setPiketList((prev) => [...newPikets, ...prev])
+        const newIds = new Set(newPikets.map(p => p.id))
+        setPiketList((prev) => [...newPikets, ...prev.filter(p => !newIds.has(p.id))])
         setNamaCC('')
         setPetugasAssign(Object.fromEntries(reguList.map((r) => [r.id, ['', '']])))
       } else {
@@ -203,11 +204,11 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
 
-      {/* Form Area */}
+      {/* Kiri: Form */}
       {canManage && (
-        <div ref={formRef} style={{ flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+        <div ref={formRef} style={{ width: '52%', maxWidth: 580, flexShrink: 0, borderRight: '1px solid var(--border)', overflowY: 'auto' }}>
           {/* Semua ULP sudah aktif */}
           {ulpTanpaPiket.length === 0 && activePikets.length > 0 ? (
             <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10, backgroundColor: 'rgba(29,185,84,0.1)' }}>
@@ -222,7 +223,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
               </div>
             </div>
           ) : (
-            <div style={{ padding: '16px 20px', maxWidth: 900, margin: '0 auto', width: '100%' }}>
+            <div style={{ padding: '16px 20px', width: '100%' }}>
               {/* Warning belum ada piket */}
               {activePikets.length === 0 && (
                 <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, backgroundColor: 'rgba(228,0,43,0.08)', border: '1px solid rgba(228,0,43,0.25)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
@@ -396,12 +397,15 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
         </div>
       )}
 
-      {/* Riwayat */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <h2 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
-            Riwayat Piket
-          </h2>
+      {/* Kanan: Riwayat */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+            <h2 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+              Riwayat Piket
+            </h2>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>30 hari terakhir</span>
+          </div>
           {piketList.length === 0 ? (
             <div style={{ padding: 32, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 12, backgroundColor: 'var(--bg-surface-2)' }}>
               Belum ada data piket
