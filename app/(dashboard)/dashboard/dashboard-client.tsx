@@ -39,6 +39,8 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
   const [selectedUlpIdx, setSelectedUlpIdx] = useState(0)
   const selectedUlpIdxRef = useRef(0)
+  const ulpDataListRef = useRef(ulpDataList)
+  ulpDataListRef.current = ulpDataList
   const [newLaporanFlags, setNewLaporanFlags] = useState<Record<string, boolean>>({})
 
   const [laporanMap, setLaporanMap] = useState<Record<string, Laporan[]>>(
@@ -96,11 +98,11 @@ export function DashboardClient({ ulpDataList, today }: Props) {
       if (existing.some((l) => l.id === laporan.id)) return prev
       return { ...prev, [laporan.ulp_id]: [laporan, ...existing] }
     })
-    const currentUlpId = ulpDataList[selectedUlpIdxRef.current]?.ulp.id
+    const currentUlpId = ulpDataListRef.current[selectedUlpIdxRef.current]?.ulp.id
     if (laporan.ulp_id !== currentUlpId) {
       setNewLaporanFlags((prev) => ({ ...prev, [laporan.ulp_id]: true }))
     }
-  }, [ulpDataList])
+  }, [])
 
   const handleRealtimeUpdate = useCallback((laporan: Laporan) => {
     setLaporanMap((prev) => {
