@@ -53,6 +53,10 @@ export function DashboardClient({ ulpDataList, today }: Props) {
   const [updateStatus, setUpdateStatus] = useState<StatusLaporan>('lapor')
   const [updateKeterangan, setUpdateKeterangan] = useState('')
   const [updating, setUpdating] = useState(false)
+  const [pindahModal, setPindahModal] = useState<Laporan | null>(null)
+  const [pindahUlpId, setPindahUlpId] = useState('')
+  const [pindahReguId, setPindahReguId] = useState('')
+  const [pindahing, setPindahing] = useState(false)
   const [sendingWa, setSendingWa] = useState<string | null>(null)
   const [sendingRekap, setSendingRekap] = useState<string | null>(null)
   const [waktu, setWaktu] = useState(new Date())
@@ -122,6 +126,44 @@ export function DashboardClient({ ulpDataList, today }: Props) {
   function closeUpdateModal() {
     setUpdateModal(null)
     setUpdateKeterangan('')
+  }
+
+  function openPindahModal(laporan: Laporan) {
+    setPindahModal(laporan)
+    setPindahUlpId(laporan.ulp_id)
+    setPindahReguId(laporan.regu_id ?? '')
+  }
+
+  function closePindahModal() {
+    setPindahModal(null)
+    setPindahUlpId('')
+    setPindahReguId('')
+  }
+
+  async function handleSubmitPindah() {
+    if (!pindahModal || !pindahUlpId || !pindahReguId) return
+    setPindahing(true)
+    const res = await fetch(`/api/laporan/${pindahModal.id}/pindah`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ulp_id: pindahUlpId, regu_id: pindahReguId }),
+    })
+    const json = await res.json()
+    if (res.ok && json.data) {
+      const oldUlpId = pindahModal.ulp_id
+      setLaporanMap((prev) => {
+        const next = { ...prev }
+        // Hapus dari ULP lama
+        next[oldUlpId] = (prev[oldUlpId] ?? []).filter((l) => l.id !== pindahModal.id)
+        // Tambah ke ULP baru jika ada di list
+        if (next[pindahUlpId]) {
+          next[pindahUlpId] = [json.data, ...(prev[pindahUlpId] ?? []).filter((l) => l.id !== pindahModal.id)]
+        }
+        return next
+      })
+    }
+    setPindahing(false)
+    closePindahModal()
   }
 
   async function handleSubmitUpdate() {
@@ -338,6 +380,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                       stats={stats}
                       onKirimWa={handleKirimWa}
                       onUpdateLaporan={openUpdateLaporan}
+                      onPindahLaporan={openPindahModal}
                       onTambahLaporan={handleTambahLaporan}
                       sendingWa={sendingWa === stats.regu.id}
                     />
@@ -459,6 +502,74 @@ export function DashboardClient({ ulpDataList, today }: Props) {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Pindah Laporan Modal */}
+      <Modal
+        open={!!pindahModal}
+        onClose={closePindahModal}
+        title={`Pindah Laporan — #${pindahModal?.nomor_tiket ?? ''}`}
+      >
+        {pindahModal && (() => {
+          const reguUlpTarget = ulpDataList.find((d) => d.ulp.id === pindahUlpId)?.reguList ?? []
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 280 }}>
+              <div style={{ padding: '12px 14px', borderRadius: 10, backgroundColor: 'var(--bg-surface-2)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', margin: 0 }}>{pindahModal.nama_pelanggan}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{pindahModal.lokasi}</p>
+                <div style={{ marginTop: 4 }}>
+                  <StatusBadge status={pindahModal.status} size="sm" />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>ULP Tujuan</label>
+                <select
+                  value={pindahUlpId}
+                  onChange={(e) => { setPindahUlpId(e.target.value); setPindahReguId('') }}
+                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)', fontSize: 13, width: '100%' }}
+                >
+                  {ulpDataList.map((d) => (
+                    <option key={d.ulp.id} value={d.ulp.id}>{d.ulp.nama}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Regu Tujuan</label>
+                <select
+                  value={pindahReguId}
+                  onChange={(e) => setPindahReguId(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)', fontSize: 13, width: '100%' }}
+                >
+                  <option value="">— Pilih Regu —</option>
+                  {reguUlpTarget.map((r) => (
+                    <option key={r.id} value={r.id}>{r.nama}</option>
+                  ))}
+                </select>
+              </div>
+
+              {pindahUlpId !== pindahModal.ulp_id && (
+                <p style={{ fontSize: 11, color: '#F59E0B', margin: 0, padding: '8px 12px', backgroundColor: 'rgba(245,158,11,0.1)', borderRadius: 8, border: '1px solid rgba(245,158,11,0.3)' }}>
+                  ⚠ Pindah ke ULP berbeda — piket dan riwayat WA akan di-reset
+                </p>
+              )}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button variant="secondary" style={{ flex: 1 }} onClick={closePindahModal}>Batal</Button>
+                <Button
+                  variant="primary"
+                  style={{ flex: 1 }}
+                  loading={pindahing}
+                  onClick={handleSubmitPindah}
+                  disabled={!pindahReguId || (pindahUlpId === pindahModal.ulp_id && pindahReguId === (pindahModal.regu_id ?? ''))}
+                >
+                  Pindahkan
+                </Button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )

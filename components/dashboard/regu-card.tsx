@@ -10,6 +10,7 @@ interface ReguCardProps {
   stats: ReguStats
   onKirimWa: (reguId: string) => void
   onUpdateLaporan: (laporan: Laporan) => void
+  onPindahLaporan: (laporan: Laporan) => void
   onTambahLaporan: (reguId: string) => void
   sendingWa: boolean
 }
@@ -46,7 +47,7 @@ function getHeaderColors(lapor: number, penugasan_regu: number, ditangani: numbe
   return { bg: '#1DB954', text: '#fff', glow: 'rgba(29,185,84,0.3)' }
 }
 
-export function ReguCard({ stats, onKirimWa, onUpdateLaporan, onTambahLaporan, sendingWa }: ReguCardProps) {
+export function ReguCard({ stats, onKirimWa, onUpdateLaporan, onPindahLaporan, onTambahLaporan, sendingWa }: ReguCardProps) {
   const { regu, petugas, laporan, lapor, penugasan_regu, ditangani, nyala_sementara, selesai } = stats
   const [collapsed, setCollapsed] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -183,6 +184,13 @@ export function ReguCard({ stats, onKirimWa, onUpdateLaporan, onTambahLaporan, s
                         {warning !== 'none' && (warning === 'red' ? '🔴 ' : '🟡 ')}
                         {formatDurasi(menit)}
                       </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onPindahLaporan(l) }}
+                        title="Pindahkan ke regu/ULP lain"
+                        style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', lineHeight: '16px' }}
+                      >
+                        ↗ Pindah
+                      </button>
                     </div>
                   </div>
                 </div>
