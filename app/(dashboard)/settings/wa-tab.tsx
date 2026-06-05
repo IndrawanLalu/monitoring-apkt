@@ -46,19 +46,7 @@ export function WaTab({ userId, ulpId, waGrupId, onGrupIdChange, waSession, onSe
   const [loadingGrup, setLoadingGrup]       = useState(false);
   const [grupList, setGrupList]             = useState<{ nama: string; id: string }[]>([]);
 
-  // Realtime updates
-  useEffect(() => {
-    if (!userId) return;
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`wa_session_${userId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "wa_session", filter: `user_id=eq.${userId}` },
-        (payload) => onSessionChange(payload.new as WaSession))
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [userId, onSessionChange]);
-
-  // Polling fallback saat loading/scanning
+  // Polling saat loading/scanning
   useEffect(() => {
     if (waSession?.status !== "loading" && waSession?.status !== "scanning") return;
     const interval = setInterval(async () => {
