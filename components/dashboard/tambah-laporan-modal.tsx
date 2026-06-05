@@ -88,7 +88,7 @@ function DoneState({ values, namaRegu, magicToken, nomorHpRegu, ulpNama, templat
   onReset: () => void
   onClose: () => void
 }) {
-  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  const base = process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
   const linkAntrian = magicToken ? `${base}/antrian/${magicToken}` : ''
   const nomorWa = formatNomorWa(values.nomor_pelanggan ?? '')
   const nomorValid = nomorWa.length >= 10
@@ -249,7 +249,7 @@ export function TambahLaporanModal({ open, onClose, reguList, ulpId, ulpNama, te
     }
 
     const magicToken = json.data?.magic_token ?? ''
-    const base = window.location.origin
+    const base = process.env.NEXT_PUBLIC_ANTRIAN_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || window.location.origin
     const linkAntrian = magicToken ? `${base}/antrian/${magicToken}` : ''
     const nomorWa = formatNomorWa(result.data.nomor_pelanggan ?? '')
 

@@ -43,9 +43,6 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   const up3Id = (up3Row as any)?.up3_id ?? null
 
-  // Admin dengan up3_id boleh login meski belum punya ULP (untuk setup ULP pertama via Settings)
-  if (ulps.length === 0 && !(profile.role === 'admin' && up3Id)) return null
-
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value
   const activeUlp = ulps.find((u) => u.id === activeUlpId) ?? ulps[0] ?? null
