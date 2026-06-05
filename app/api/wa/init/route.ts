@@ -74,6 +74,19 @@ async function startWaSession(
       } catch (err) {
         console.error('[WA getChats error]', err)
       }
+
+      // Auto-reconnect saat frame WA Web detach (WA Web navigate/update sendiri)
+      client.pupPage?.once('framedetached', () => {
+        console.log(`[WA] frame detached — schedule reconnect user:${userId.slice(0, 8)}`)
+        setTimeout(async () => {
+          await destroyWaClient(userId, 'frame-detached')
+          await admin
+            .from('wa_session')
+            .update({ status: 'loading', session_data: null })
+            .eq('user_id', userId)
+          startWaSession(userId, admin, 1)
+        }, 3000)
+      })
     })
 
     client.on('disconnected', async () => {

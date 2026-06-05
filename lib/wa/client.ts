@@ -56,6 +56,11 @@ export function getOrCreateWaClient(userId: string): Client {
         sessionDir,
       ),
     }),
+    // Pin versi WA Web agar tidak auto-update mid-session (penyebab detached frame)
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.x.json',
+    },
     userAgent:
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     puppeteer: {
