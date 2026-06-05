@@ -96,6 +96,7 @@ export async function destroyWaClient(
   if (client) {
     // Kill Chrome langsung via PID — lebih reliable dari pkill/fuser
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chromePid = (client as any).pupBrowser?.process()?.pid as
         | number
         | undefined;
