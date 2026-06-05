@@ -86,10 +86,11 @@ export function getOrCreateWaClient(userId: string): Client {
 export async function destroyWaClient(
   userId: string,
   caller = "unknown",
+  opts: { keepSession?: boolean } = {},
 ): Promise<void> {
   const short = userId.slice(0, 8);
   console.log(
-    `[WA Destroy] START user:${short} caller:${caller} inMap:${clients.has(userId)} registered:${registeredHandlers.has(userId)}`,
+    `[WA Destroy] START user:${short} caller:${caller} keepSession:${!!opts.keepSession} inMap:${clients.has(userId)} registered:${registeredHandlers.has(userId)}`,
   );
 
   const client = clients.get(userId);
@@ -112,9 +113,12 @@ export async function destroyWaClient(
       console.log(`[WA Destroy] chromePid kill error:`, e);
     }
 
-    try {
-      await client.logout().catch(() => null);
-    } catch {}
+    // logout() hanya saat full destroy — jangan saat keepSession karena akan invalidate sesi WA
+    if (!opts.keepSession) {
+      try {
+        await client.logout().catch(() => null);
+      } catch {}
+    }
     try {
       await client.destroy().catch(() => null);
     } catch {}
@@ -162,30 +166,35 @@ export async function destroyWaClient(
   console.log(`[WA Destroy] kill round 1 done user:${short}`);
   await new Promise((r) => setTimeout(r, 2000));
 
-  function tryDeleteFolder() {
-    if (!fs.existsSync(targetDir)) return false;
-    try {
-      fs.rmSync(targetDir, { recursive: true, force: true });
-    } catch {}
-    return fs.existsSync(targetDir); // true = masih ada (gagal hapus)
-  }
-
-  if (tryDeleteFolder()) {
-    // Folder masih ada — Chrome zombie sempat rekonstruksi, kill lagi
-    console.log(
-      `[WA Destroy] ZOMBIE folder masih ada, kill round 2 user:${short}`,
-    );
-    await killZombieChrome();
-    await new Promise((r) => setTimeout(r, 2000));
-    if (tryDeleteFolder()) {
-      console.error(
-        `[WA Destroy] ZOMBIE folder MASIH ADA setelah 2x kill user:${short}`,
-      );
-    } else {
-      console.log(`[WA Destroy] folder deleted (round 2) user:${short}`);
-    }
+  // keepSession: jangan hapus folder — Chrome akan reuse session saat reconnect (tanpa QR)
+  if (opts.keepSession) {
+    console.log(`[WA Destroy] keepSession — folder preserved user:${short}`);
   } else {
-    console.log(`[WA Destroy] folder deleted user:${short}`);
+    function tryDeleteFolder() {
+      if (!fs.existsSync(targetDir)) return false;
+      try {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      } catch {}
+      return fs.existsSync(targetDir); // true = masih ada (gagal hapus)
+    }
+
+    if (tryDeleteFolder()) {
+      // Folder masih ada — Chrome zombie sempat rekonstruksi, kill lagi
+      console.log(
+        `[WA Destroy] ZOMBIE folder masih ada, kill round 2 user:${short}`,
+      );
+      await killZombieChrome();
+      await new Promise((r) => setTimeout(r, 2000));
+      if (tryDeleteFolder()) {
+        console.error(
+          `[WA Destroy] ZOMBIE folder MASIH ADA setelah 2x kill user:${short}`,
+        );
+      } else {
+        console.log(`[WA Destroy] folder deleted (round 2) user:${short}`);
+      }
+    } else {
+      console.log(`[WA Destroy] folder deleted user:${short}`);
+    }
   }
 
   console.log(

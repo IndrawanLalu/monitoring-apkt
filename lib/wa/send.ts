@@ -14,7 +14,8 @@ async function getWaClientForUlp(ulpId: string) {
 
   for (const { user_id } of userUlps ?? []) {
     const client = getWaClient(user_id)
-    if (client) return client
+    // client.info null = belum ready (masih initializing atau frame detached)
+    if (client?.info) return client
   }
   return null
 }

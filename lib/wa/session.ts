@@ -52,10 +52,11 @@ export async function startWaSession(
       }
 
       // Auto-reconnect saat frame WA Web detach (WA Web navigate/update sendiri)
+      // keepSession: true — jangan hapus folder session agar reconnect tidak perlu QR ulang
       client.pupPage?.once('framedetached', () => {
         console.log(`[WA] frame detached — schedule reconnect user:${userId.slice(0, 8)}`)
         setTimeout(async () => {
-          await destroyWaClient(userId, 'frame-detached')
+          await destroyWaClient(userId, 'frame-detached', { keepSession: true })
           await admin
             .from('wa_session')
             .update({ status: 'loading', session_data: null })
@@ -90,7 +91,8 @@ export async function startWaSession(
 
     if (isBrowserRunning && attempt < MAX_ATTEMPTS) {
       console.log(`[WA Init] "browser already running" — retry ${attempt}/${MAX_ATTEMPTS - 1} user:${userId.slice(0, 8)}`)
-      await destroyWaClient(userId, `init-retry-${attempt}`)
+      // keepSession: true — hanya kill Chrome, folder session dipertahankan
+      await destroyWaClient(userId, `init-retry-${attempt}`, { keepSession: true })
       await new Promise((r) => setTimeout(r, 2000))
       return startWaSession(userId, admin, attempt + 1)
     }
