@@ -187,7 +187,7 @@ export function ReguCard({ stats, onKirimWa, onUpdateLaporan, onPindahLaporan, o
                       <button
                         onClick={(e) => { e.stopPropagation(); onPindahLaporan(l) }}
                         title="Pindahkan ke regu/ULP lain"
-                        style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', lineHeight: '16px' }}
+                        style={{ fontSize: 10, color: '#fff', background: '#0070C0', border: '1px solid #0070C0', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', lineHeight: '16px', fontWeight: 600 }}
                       >
                         ↗ Pindah
                       </button>

@@ -6,16 +6,23 @@ export function normJoin<T>(value: T | T[] | null | undefined): T | null {
 }
 import { id } from 'date-fns/locale'
 
+const TZ = 'Asia/Jakarta'
+
+function toJkt(date: string | Date): Date {
+  const d = new Date(date)
+  return new Date(d.toLocaleString('en-US', { timeZone: TZ }))
+}
+
 export function formatTanggal(date: string | Date): string {
-  return format(new Date(date), 'dd MMM yyyy', { locale: id })
+  return format(toJkt(date), 'dd MMM yyyy', { locale: id })
 }
 
 export function formatWaktu(date: string | Date): string {
-  return format(new Date(date), 'HH:mm', { locale: id })
+  return format(toJkt(date), 'HH:mm', { locale: id })
 }
 
 export function formatTanggalWaktu(date: string | Date): string {
-  return format(new Date(date), 'dd MMM yyyy, HH:mm', { locale: id })
+  return format(toJkt(date), 'dd MMM yyyy, HH:mm', { locale: id })
 }
 
 export function formatRelative(date: string | Date): string {

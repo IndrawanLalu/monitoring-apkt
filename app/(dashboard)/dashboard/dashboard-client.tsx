@@ -59,12 +59,6 @@ export function DashboardClient({ ulpDataList, today }: Props) {
   const [pindahing, setPindahing] = useState(false)
   const [sendingWa, setSendingWa] = useState<string | null>(null)
   const [sendingRekap, setSendingRekap] = useState<string | null>(null)
-  const [waktu, setWaktu] = useState(new Date())
-
-  useEffect(() => {
-    const t = setInterval(() => setWaktu(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
 
   // Auto-refresh saat jam shift berakhir agar piket aktif terupdate
   useEffect(() => {
@@ -324,14 +318,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
           {/* Right: clock + date + stats + rekap */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="text-right hidden md:block">
-              <div className="text-white font-mono text-sm font-black leading-none" suppressHydrationWarning>
-                {waktu.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </div>
-              <div className="text-blue-200 text-xs leading-none mt-0.5">
-                {waktu.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </div>
-            </div>
+            <LiveClock />
             <div className="flex items-center gap-1">
               <UlpStatChip label="L" value={totalLapor} bg="#E4002B" />
               <UlpStatChip label="R" value={totalPenugasanRegu} bg="#F5A623" />
@@ -571,6 +558,24 @@ export function DashboardClient({ ulpDataList, today }: Props) {
           )
         })()}
       </Modal>
+    </div>
+  )
+}
+
+function LiveClock() {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <div className="text-right hidden md:block">
+      <div className="text-white font-mono text-sm font-black leading-none" suppressHydrationWarning>
+        {now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </div>
+      <div className="text-blue-200 text-xs leading-none mt-0.5">
+        {now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+      </div>
     </div>
   )
 }
