@@ -37,20 +37,6 @@ export async function startWaSession(
         .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
         .eq('user_id', userId)
 
-      await new Promise((r) => setTimeout(r, 5000))
-      try {
-        const chats = await client.getChats()
-        const groups = chats
-          .filter((c) => c.isGroup)
-          .map((c) => ({ nama: c.name, id: c.id._serialized }))
-        await admin
-          .from('wa_session')
-          .update({ session_data: { wa_number: info?.wid?.user, groups } })
-          .eq('user_id', userId)
-      } catch (err) {
-        console.error('[WA getChats error]', err)
-      }
-
       // Auto-reconnect saat frame WA Web detach (WA Web navigate/update sendiri)
       // keepSession: true — jangan hapus folder session agar reconnect tidak perlu QR ulang
       client.pupPage?.once('framedetached', () => {
