@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getWaClient } from '@/lib/wa/client'
+import { gatewayEnabled, gatewayListGroups } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -9,6 +10,17 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = user.id
+
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    try {
+      const groups = await gatewayListGroups(userId)
+      return NextResponse.json({ data: groups })
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 503 })
+    }
+  }
+
   const client = getWaClient(userId)
 
   if (client) {

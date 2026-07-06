@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getOrCreateWaClient, isClientRegistered, markClientRegistered } from '@/lib/wa/client'
+import { gatewayEnabled, gatewayRequestPairingCode } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -17,6 +18,19 @@ export async function POST(req: NextRequest) {
   const cleanPhone = phone_number.replace(/\D/g, '').replace(/^0/, '62')
 
   const admin = createAdminClient()
+
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    await admin.from('wa_session').upsert({ user_id: userId, status: 'loading', session_data: null }, { onConflict: 'user_id' })
+    try {
+      const { code } = await gatewayRequestPairingCode(userId, cleanPhone)
+      await admin.from('wa_session').update({ status: 'scanning', session_data: { pairing_code: code } }).eq('user_id', userId)
+      return NextResponse.json({ success: true, code })
+    } catch (e) {
+      await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', userId)
+      return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+    }
+  }
   await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
 
   const client = getOrCreateWaClient(userId)

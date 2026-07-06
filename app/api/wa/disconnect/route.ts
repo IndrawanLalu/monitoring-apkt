@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { destroyWaClient } from '@/lib/wa/client'
+import { gatewayEnabled, gatewayDeleteSession } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -9,6 +10,15 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = user.id
+
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    await gatewayDeleteSession(userId).catch(() => null)
+    const adminGw = createAdminClient()
+    await adminGw.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', userId)
+    return NextResponse.json({ success: true })
+  }
+
   await destroyWaClient(userId)
 
   const admin = createAdminClient()

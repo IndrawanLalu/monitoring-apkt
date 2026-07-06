@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/client";
 import { WA_SESSION_STATUS } from "@/constants";
 import type { WaSessionStatus } from "@/types";
 import Image from "next/image";
@@ -46,25 +45,29 @@ export function WaTab({ userId, ulpId, waGrupId, onGrupIdChange, waSession, onSe
   const [loadingGrup, setLoadingGrup]       = useState(false);
   const [grupList, setGrupList]             = useState<{ nama: string; id: string }[]>([]);
 
-  // Polling saat loading/scanning
+  // Polling status via /api/wa/status (abstraksi gateway vs whatsapp-web.js lama)
   useEffect(() => {
     if (waSession?.status !== "loading" && waSession?.status !== "scanning") return;
     const interval = setInterval(async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("wa_session")
-        .select("id, user_id, status, session_data, updated_at")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (data) {
-        const d = data as WaSession;
-        if (d.status !== waSession?.status || d.updated_at !== waSession?.updated_at) {
-          onSessionChange(d);
+      try {
+        const res = await fetch("/api/wa/status");
+        if (!res.ok) return;
+        const j = await res.json();
+        const prev = (waSession?.session_data ?? {}) as { qr?: string; pairing_code?: string };
+        const next = (j.session_data ?? {}) as { qr?: string; pairing_code?: string };
+        const changed =
+          j.status !== waSession?.status ||
+          (next.qr ?? "") !== (prev.qr ?? "") ||
+          (next.pairing_code ?? "") !== (prev.pairing_code ?? "");
+        if (changed) {
+          onSessionChange({ id: waSession?.id ?? "", user_id: userId ?? "", status: j.status, session_data: j.session_data, updated_at: j.updated_at });
         }
+      } catch {
+        // abaikan error poll
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [waSession?.status, waSession?.updated_at, userId, onSessionChange]);
+  }, [waSession?.status, waSession?.session_data, waSession?.id, userId, onSessionChange]);
 
   async function handleInit() {
     setInitLoading(true);
@@ -99,17 +102,22 @@ export function WaTab({ userId, ulpId, waGrupId, onGrupIdChange, waSession, onSe
   const handleRefreshStatus = useCallback(async () => {
     setRefreshLoading(true);
     try {
-      await fetch("/api/wa/sync-status", { method: "POST" });
-      const supabase = createClient();
-      const { data } = await supabase.from("wa_session").select("id, user_id, status, session_data, updated_at").eq("user_id", userId).maybeSingle();
-      if (data) onSessionChange(data as WaSession);
+      const res = await fetch("/api/wa/status");
+      const j = await res.json();
+      onSessionChange({ id: waSession?.id ?? "", user_id: userId ?? "", status: j.status, session_data: j.session_data, updated_at: j.updated_at });
       onToast("Status berhasil di-refresh!", "success");
     } catch (e: any) {
       onToast(e.message || "Gagal refresh status", "error");
     } finally {
       setRefreshLoading(false);
     }
-  }, [userId, onSessionChange, onToast]);
+  }, [userId, waSession?.id, onSessionChange, onToast]);
+
+  // Ambil status sekali saat mount (sinkron dgn sumber kebenaran: gateway/lama)
+  useEffect(() => {
+    handleRefreshStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handlePairingCode() {
     if (!phoneNumber.trim()) return;

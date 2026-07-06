@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { destroyWaClient, isInitLocked, acquireInitLock } from '@/lib/wa/client'
 import { startWaSession } from '@/lib/wa/session'
+import { gatewayEnabled, gatewayStartSession } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -11,6 +12,13 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id
   const admin = createAdminClient()
+
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    await admin.from('wa_session').upsert({ user_id: userId, status: 'loading', session_data: null }, { onConflict: 'user_id' })
+    await gatewayStartSession(userId)
+    return NextResponse.json({ success: true, message: 'WhatsApp session dimulai di gateway...' })
+  }
 
   // Cegah concurrent init untuk user yang sama
   if (isInitLocked(userId)) {

@@ -1,6 +1,14 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
+  // Mode gateway: koneksi WA dipegang wa-gateway (Baileys), tak ada whatsapp-web.js
+  // yang perlu di-reconnect saat boot.
+  const { gatewayEnabled } = await import('./lib/wa/gateway')
+  if (gatewayEnabled()) {
+    console.log('[WA] Mode gateway aktif — skip auto-reconnect whatsapp-web.js')
+    return
+  }
+
   const { createAdminClient } = await import('./lib/supabase/admin')
   const { isClientRegistered, destroyWaClient, hasWaSession } = await import('./lib/wa/client')
   const { startWaSession } = await import('./lib/wa/session')

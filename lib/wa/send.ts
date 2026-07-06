@@ -2,9 +2,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getWaClient } from '@/lib/wa/client'
 import { buildPesanLaporanBaru, buildPesanUpdateStatus } from '@/lib/wa/messages'
 import { normJoin } from '@/lib/utils/format'
+import { gatewayEnabled, getOpenSessionForUlp, gatewaySend } from '@/lib/wa/gateway'
 import type { StatusLaporan } from '@/types'
 
-// Cari WA client yang aktif untuk sebuah ULP
+// Cari WA client whatsapp-web.js yang aktif untuk sebuah ULP (jalur LAMA).
 async function getWaClientForUlp(ulpId: string) {
   const admin = createAdminClient()
   const { data: userUlps } = await admin
@@ -42,15 +43,11 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
   const ulp = normJoin(laporan.ulp as unknown as { id: string; nama: string; wa_grup_id: string | null } | null)
   if (!ulp?.wa_grup_id) return
 
-  const waClient = await getWaClientForUlp(laporan.ulp_id)
-  if (!waClient) return
-
   const regu = normJoin(laporan.regu as unknown as { id: string; nama: string; nomor_hp?: string | null } | null)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!
   const magicUrl = `${appUrl}/magic/${laporan.magic_token}`
-  
+
   const waNum = formatWaNumber(regu?.nomor_hp)
-  const mentions = waNum ? [`${waNum}@c.us`] : undefined
 
   // Sertakan tag/mention ke dalam pesan
   let pesan = buildPesanLaporanBaru({ ...laporan, regu }, magicUrl)
@@ -58,6 +55,26 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
     pesan = pesan.replace(`Regu      : ${regu?.nama}`, `Regu      : *${regu?.nama}* (@${waNum})`)
   }
 
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
+    if (!sessionId) return
+    const { id } = await gatewaySend(sessionId, {
+      to: ulp.wa_grup_id,
+      text: pesan,
+      mentions: waNum ? [waNum] : undefined,
+    })
+    if (id) {
+      await admin.from('laporan').update({ wa_message_id: id }).eq('id', laporanId)
+    }
+    return
+  }
+
+  // --- Jalur LAMA: whatsapp-web.js in-process ---
+  const waClient = await getWaClientForUlp(laporan.ulp_id)
+  if (!waClient) return
+
+  const mentions = waNum ? [`${waNum}@c.us`] : undefined
   const msg = await waClient.sendMessage(ulp.wa_grup_id, pesan, { mentions })
 
   await admin
@@ -84,9 +101,6 @@ export async function kirimUpdateStatus(
   const ulp = normJoin(laporan.ulp as unknown as { wa_grup_id: string | null } | null)
   if (!ulp?.wa_grup_id) return
 
-  const waClient = await getWaClientForUlp(laporan.ulp_id)
-  if (!waClient) return
-
   const regu = normJoin(laporan.regu as unknown as { nama: string; nomor_hp?: string | null } | null)
   let pesan = buildPesanUpdateStatus(
     laporan.nomor_tiket,
@@ -96,12 +110,29 @@ export async function kirimUpdateStatus(
   )
 
   const waNum = formatWaNumber(regu?.nomor_hp)
-  const mentions = waNum ? [`${waNum}@c.us`] : undefined
 
   if (waNum) {
     pesan = pesan.replace(`| ${regu?.nama}`, `| *${regu?.nama}* (@${waNum})`)
   }
 
+  // --- Jalur BARU: gateway (Baileys) ---
+  if (gatewayEnabled()) {
+    const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
+    if (!sessionId) return
+    await gatewaySend(sessionId, {
+      to: ulp.wa_grup_id,
+      text: pesan,
+      mentions: waNum ? [waNum] : undefined,
+      replyTo: laporan.wa_message_id ?? undefined, // reply ke pesan laporan asli
+    })
+    return
+  }
+
+  // --- Jalur LAMA: whatsapp-web.js in-process ---
+  const waClient = await getWaClientForUlp(laporan.ulp_id)
+  if (!waClient) return
+
+  const mentions = waNum ? [`${waNum}@c.us`] : undefined
   try {
     if (laporan.wa_message_id) {
       const originalMsg = await waClient.getMessageById(laporan.wa_message_id)
