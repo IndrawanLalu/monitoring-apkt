@@ -641,13 +641,35 @@ export function RekapClient({ data }: { data: RekapData }) {
                 padding: "8px 12px",
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: 6,
               }}
             >
-              <span style={{ fontSize: 14 }}>⭐</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: "#fff" }}>
-                Feedback Pelanggan
+              <span
+                style={{ display: "flex", alignItems: "center", gap: 6 }}
+              >
+                <span style={{ fontSize: 14 }}>⭐</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#fff" }}>
+                  Feedback Pelanggan
+                </span>
               </span>
+              <a
+                href="/rekap-survey"
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  color: "#fff",
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  border: "1px solid rgba(255,255,255,0.5)",
+                  borderRadius: 20,
+                  padding: "2px 10px",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}
+              >
+                Lihat semua ›
+              </a>
             </div>
           </div>
 

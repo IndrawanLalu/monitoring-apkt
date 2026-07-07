@@ -34,28 +34,39 @@ export default async function OutagePage({
     ? `${year}-12-31T23:59:59+08:00`
     : `${year}-${String(month).padStart(2, '0')}-${lastDay}T23:59:59+08:00`
 
-  // Fetch laporan selesai in period
-  const { data: laporanRaw } = await admin
-    .from('laporan')
-    .select('id, nomor_tiket, ulp_id, regu_id, piket_id, resolved_piket_id, resolved_petugas_names, lokasi, resolved_at, created_at')
-    .eq('status', 'selesai')
-    .in('ulp_id', filteredUlpIds)
-    .gte('resolved_at', startDate)
-    .lte('resolved_at', endDate)
-    .order('resolved_at', { ascending: false })
-
-  const laporan = laporanRaw ?? []
-  const laporanIds = laporan.map(l => l.id as string)
+  // Fetch laporan selesai in period.
+  // Supabase membatasi 1000 baris/req → paginasi via .range() agar semua laporan terambil.
+  // (Bulan ramai bisa >3000 laporan; tanpa paginasi statistik, kalender & survey ikut terpotong)
+  type LaporanRow = {
+    id: string; nomor_tiket: string; ulp_id: string; regu_id: string; piket_id: string
+    resolved_piket_id: string | null; resolved_petugas_names: string[] | null
+    lokasi: string; resolved_at: string; created_at: string
+  }
+  const laporan: LaporanRow[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await admin
+      .from('laporan')
+      .select('id, nomor_tiket, ulp_id, regu_id, piket_id, resolved_piket_id, resolved_petugas_names, lokasi, resolved_at, created_at')
+      .eq('status', 'selesai')
+      .in('ulp_id', filteredUlpIds)
+      .gte('resolved_at', startDate)
+      .lte('resolved_at', endDate)
+      .order('resolved_at', { ascending: false })
+      .range(from, from + 999)
+    if (error || !data) break
+    laporan.push(...(data as unknown as LaporanRow[]))
+    if (data.length < 1000) break
+  }
   // Gunakan resolved_piket_id (piket aktif saat selesai), fallback ke piket_id untuk data lama
   const piketIds = [...new Set(laporan.map(l => (l.resolved_piket_id ?? l.piket_id) as string).filter(Boolean))]
 
-  // Fetch piket_petugas for those pikets
+  // Fetch piket_petugas for those pikets — chunk .in() agar URL tak melampaui batas server
   const ppData: { piket_id: string; regu_id: string; petugas: { id: string; nama: string } | null }[] = []
-  if (piketIds.length > 0) {
+  for (let i = 0; i < piketIds.length; i += 150) {
     const { data } = await admin
       .from('piket_petugas')
       .select('piket_id, regu_id, petugas:petugas_apkt(id, nama)')
-      .in('piket_id', piketIds)
+      .in('piket_id', piketIds.slice(i, i + 150))
     ;(data ?? []).forEach(d => {
       ppData.push({
         piket_id: d.piket_id as string,
@@ -65,15 +76,26 @@ export default async function OutagePage({
     })
   }
 
-  // Fetch surveys for those laporan
-  const surveysRaw: { laporan_id: string; kepuasan_keseluruhan: string; submitted_at: string }[] = []
-  if (laporanIds.length > 0) {
+  // Fetch surveys via inner join ke laporan (filter status/ulp/periode di sisi DB).
+  // Hindari .in('laporan_id', ribuan id) yang bikin URL kepanjangan → Bad Request → survey kosong.
+  type SurveyRow = {
+    laporan_id: string; kepuasan_keseluruhan: string; submitted_at: string
+    nama_pelanggan: string; alamat: string
+    kondisi_setelah: string; kualitas_pelayanan: string; kecepatan_respon: string
+    ada_pungli: string; ada_tips: string; ada_3s: string; ada_identitas: string
+    ada_apd: string; ada_hal_tidak_senang: string; pesan_saran: string | null
+  }
+  const surveysRaw: SurveyRow[] = []
+  {
     const { data } = await admin
       .from('survey_laporan')
-      .select('laporan_id, kepuasan_keseluruhan, submitted_at')
-      .in('laporan_id', laporanIds)
+      .select('laporan_id, kepuasan_keseluruhan, submitted_at, nama_pelanggan, alamat, kondisi_setelah, kualitas_pelayanan, kecepatan_respon, ada_pungli, ada_tips, ada_3s, ada_identitas, ada_apd, ada_hal_tidak_senang, pesan_saran, laporan:laporan_id!inner(status, ulp_id, resolved_at)')
+      .eq('laporan.status', 'selesai')
+      .in('laporan.ulp_id', filteredUlpIds)
+      .gte('laporan.resolved_at', startDate)
+      .lte('laporan.resolved_at', endDate)
       .order('submitted_at', { ascending: false })
-    ;(data ?? []).forEach(d => surveysRaw.push(d as typeof surveysRaw[0]))
+    ;(data ?? []).forEach(d => surveysRaw.push(d as unknown as SurveyRow))
   }
 
   // Fetch ULP info
@@ -174,6 +196,18 @@ export default async function OutagePage({
       petugas:      getLaporanPetugas(l),
       kepuasan:     s.kepuasan_keseluruhan,
       submittedAt:  s.submitted_at,
+      namaPelanggan:      s.nama_pelanggan,
+      alamat:             s.alamat,
+      kondisiSetelah:     s.kondisi_setelah,
+      kualitasPelayanan:  s.kualitas_pelayanan,
+      kecepatanRespon:    s.kecepatan_respon,
+      adaPungli:          s.ada_pungli,
+      adaTips:            s.ada_tips,
+      ada3s:              s.ada_3s,
+      adaIdentitas:       s.ada_identitas,
+      adaApd:             s.ada_apd,
+      adaHalTidakSenang:  s.ada_hal_tidak_senang,
+      pesanSaran:         s.pesan_saran,
     }
   }).filter(Boolean) as OutageData['surveyList']
 

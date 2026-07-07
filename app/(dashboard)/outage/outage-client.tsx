@@ -13,6 +13,38 @@ const KEPUASAN_LABEL: Record<string, { label: string; emoji: string; color: stri
 const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des']
 const PLN = '#003B8E'
 
+// ─── Label maps untuk detail survey (konsisten dgn form antrian) ───────
+const KONDISI_LABEL: Record<string, string> = {
+  tidak_ada:      'Tidak ada gangguan / listrik normal',
+  kadang_padam:   'Kadang-kadang padam',
+  padam_sekarang: 'Listrik masih padam',
+}
+const SKALA_LABEL: Record<string, string> = {
+  sangat_buruk: '1 · Sangat Buruk',
+  buruk:        '2 · Buruk',
+  cukup:        '3 · Cukup',
+  baik:         '4 · Baik',
+  sangat_baik:  '5 · Sangat Baik',
+}
+// Pertanyaan Ya/Tidak — goodWhen menentukan warna hijau/merah
+const YATIDAK_QUESTIONS: { key: keyof SurveyItem; q: string; goodWhen: 'ada' | 'tidak_ada' }[] = [
+  { key: 'adaPungli',         q: 'Petugas meminta biaya tambahan (Pungli)?',            goodWhen: 'tidak_ada' },
+  { key: 'adaTips',           q: 'Ada permintaan uang tips/sukarela?',                   goodWhen: 'tidak_ada' },
+  { key: 'ada3s',             q: 'Petugas bersikap Senyum, Sapa, Salam (3S)?',           goodWhen: 'ada' },
+  { key: 'adaIdentitas',      q: 'Petugas menunjukkan identitas diri?',                  goodWhen: 'ada' },
+  { key: 'adaApd',            q: 'Petugas menggunakan APD (helm, sepatu)?',              goodWhen: 'ada' },
+  { key: 'adaHalTidakSenang', q: 'Mengalami hal tidak menyenangkan?',                    goodWhen: 'tidak_ada' },
+]
+
+export interface SurveyItem {
+  nomorTiket: string; lokasi: string; ulpNama: string; petugas: string[]
+  kepuasan: string; submittedAt: string
+  namaPelanggan: string; alamat: string
+  kondisiSetelah: string; kualitasPelayanan: string; kecepatanRespon: string
+  adaPungli: string; adaTips: string; ada3s: string; adaIdentitas: string
+  adaApd: string; adaHalTidakSenang: string; pesanSaran: string | null
+}
+
 export interface OutageData {
   year: number
   month: number
@@ -21,7 +53,7 @@ export interface OutageData {
   totalSelesai: number
   petugasSelesaiList: { nama: string; ulpNama: string; count: number }[]
   petugasPuasList: { nama: string; ulpNama: string; sangat_puas: number; puas: number; biasa: number; tidak_puas: number; sangat_tidak_puas: number; total: number }[]
-  surveyList: { nomorTiket: string; lokasi: string; ulpNama: string; petugas: string[]; kepuasan: string; submittedAt: string }[]
+  surveyList: SurveyItem[]
   calendarDays: { tanggal: string; petugas: { nama: string; count: number }[]; total: number }[]
 }
 
@@ -66,6 +98,7 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
   const router = useRouter()
   const pathname = usePathname()
   const [tab, setTab] = useState<Tab>('rating')
+  const [detail, setDetail] = useState<SurveyItem | null>(null)
 
   const calendarMatrix = useMemo(() => {
     const petugasSet = new Set<string>()
@@ -292,7 +325,7 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                 {data.surveyList.map((s, i) => {
                   const kfg = KEPUASAN_LABEL[s.kepuasan] ?? { label: s.kepuasan, emoji: '❓', color: '#64748B' }
                   return (
-                    <div key={i} style={{ padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border)', backgroundColor: 'var(--bg-surface-2)' }}>
+                    <div key={i} onClick={() => setDetail(s)} style={{ padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border)', backgroundColor: 'var(--bg-surface-2)', cursor: 'pointer' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
                         <div>
                           <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', margin: 0 }}>#{s.nomorTiket}</p>
@@ -304,9 +337,12 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                       {s.petugas.length > 0 && (
                         <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 4px' }}>👷 {s.petugas.join(' · ')}</p>
                       )}
-                      <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
-                        {new Date(s.submittedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
+                          {new Date(s.submittedAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)' }}>Lihat detail ›</span>
+                      </div>
                     </div>
                   )
                 })}
@@ -382,6 +418,101 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
             )}
           </Card>
         )}
+      </div>
+
+      {detail && <SurveyDetailModal survey={detail} onClose={() => setDetail(null)} />}
+    </div>
+  )
+}
+
+function DetailRow({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '9px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, flex: 1, lineHeight: 1.4 }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 800, color: color ?? 'var(--text-primary)', textAlign: 'right', flexShrink: 0, maxWidth: '55%' }}>{value}</span>
+    </div>
+  )
+}
+
+function SurveyDetailModal({ survey: s, onClose }: { survey: SurveyItem; onClose: () => void }) {
+  const kfg = KEPUASAN_LABEL[s.kepuasan] ?? { label: s.kepuasan, emoji: '❓', color: '#64748B' }
+  const secTitle: React.CSSProperties = { fontSize: 11, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--bg-surface)', width: '100%', maxWidth: 860,
+          maxHeight: '96vh', display: 'flex', flexDirection: 'column',
+          borderRadius: 18, overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+        }}
+      >
+        {/* Header modal */}
+        <div style={{ flexShrink: 0, background: `linear-gradient(135deg, ${PLN} 0%, #0055B3 100%)`, padding: '16px 22px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 16, fontWeight: 900, color: '#fff', margin: 0 }}>#{s.nomorTiket}</p>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: '2px 0 0', fontWeight: 500 }}>{s.ulpNama}</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 26 }}>{kfg.emoji}</span>
+                <div>
+                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', margin: 0, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kepuasan Keseluruhan</p>
+                  <p style={{ fontSize: 15, fontWeight: 900, color: '#fff', margin: 0 }}>{kfg.label}</p>
+                </div>
+              </div>
+              <button onClick={onClose} style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 20, fontWeight: 800, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Body modal — 2 kolom agar muat 1 layar tanpa scroll */}
+        <div style={{ flex: 1, overflow: 'auto', padding: 22, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 32px', alignContent: 'start' }}>
+          {/* Kolom kiri */}
+          <div>
+            <p style={secTitle}>Data Pelanggan</p>
+            <DetailRow label="Nama Pelanggan" value={s.namaPelanggan} />
+            <DetailRow label="Alamat" value={s.alamat} />
+            <DetailRow label="Lokasi Gangguan" value={s.lokasi} />
+            {s.petugas.length > 0 && <DetailRow label="Petugas" value={s.petugas.join(', ')} />}
+            <DetailRow label="Waktu Survey" value={new Date(s.submittedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} />
+
+            <p style={{ ...secTitle, marginTop: 16 }}>Penilaian</p>
+            <DetailRow label="Kondisi setelah perbaikan" value={KONDISI_LABEL[s.kondisiSetelah] ?? s.kondisiSetelah} />
+            <DetailRow label="Kualitas pelayanan" value={SKALA_LABEL[s.kualitasPelayanan] ?? s.kualitasPelayanan} />
+            <DetailRow label="Kecepatan respon" value={SKALA_LABEL[s.kecepatanRespon] ?? s.kecepatanRespon} />
+          </div>
+
+          {/* Kolom kanan */}
+          <div>
+            <p style={secTitle}>Sikap & Kepatuhan Petugas</p>
+            {YATIDAK_QUESTIONS.map(({ key, q, goodWhen }) => {
+              const val = s[key] as string
+              const good = val === goodWhen
+              const color = good ? '#059669' : '#DC2626'
+              const label = val === 'ada' ? 'Ya' : val === 'tidak_ada' ? 'Tidak' : val
+              return <DetailRow key={key} label={q} value={<span>{good ? '✓' : '✕'} {label}</span>} color={color} />
+            })}
+
+            {s.pesanSaran && s.pesanSaran.trim() !== '' && (
+              <>
+                <p style={{ ...secTitle, marginTop: 16 }}>Saran / Pesan</p>
+                <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: 0, lineHeight: 1.6, padding: '10px 12px', backgroundColor: 'var(--bg-surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                  “{s.pesanSaran}”
+                </p>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
