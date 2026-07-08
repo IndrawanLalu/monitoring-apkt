@@ -1,6 +1,11 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
 
+  // Scheduler kirim rekap gangguan belum selesai ke grup WA tiap 3 jam.
+  // Jalan lepas dari jalur WA (gateway/legacy) — selalu diaktifkan saat boot.
+  const { startRekapGangguanScheduler } = await import('./lib/wa/rekap-gangguan')
+  startRekapGangguanScheduler()
+
   // Mode gateway: koneksi WA dipegang wa-gateway (Baileys), tak ada whatsapp-web.js
   // yang perlu di-reconnect saat boot.
   const { gatewayEnabled } = await import('./lib/wa/gateway')

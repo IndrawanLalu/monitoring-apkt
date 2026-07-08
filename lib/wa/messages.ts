@@ -1,5 +1,5 @@
 import { STATUS_EMOJI, STATUS_LABEL, SHIFT_LABEL } from '@/constants'
-import { formatTanggal, formatWaktu } from '@/lib/utils/format'
+import { formatTanggal, formatWaktu, formatTanggalWaktu, formatDurasi } from '@/lib/utils/format'
 import type { StatusLaporan, ShiftType, Laporan, Regu } from '@/types'
 
 interface LaporanWa {
@@ -116,6 +116,73 @@ interface LaporanRekap {
   nama_pelanggan: string
   status: StatusLaporan
   keterangan?: string | null
+}
+
+interface LaporanBelumSelesai {
+  regu_id: string | null
+  nomor_tiket: string
+  nama_pelanggan: string
+  lokasi: string
+  keterangan?: string | null
+  status: StatusLaporan
+  created_at: string
+}
+
+/**
+ * Rekap gangguan belum selesai (semua status ≠ selesai) untuk 1 ULP,
+ * dikelompokkan per regu, disertai durasi sejak laporan dibuat.
+ * Dikirim otomatis tiap 3 jam ke grup WA masing-masing ULP.
+ */
+export function buildPesanRekapGangguan(
+  ulpNama: string,
+  reguList: { id: string; nama: string }[],
+  laporanList: LaporanBelumSelesai[],
+  now: Date,
+): string {
+  const header = [
+    `📋 *REKAP GANGGUAN BELUM SELESAI*`,
+    `${ulpNama} | ${formatTanggalWaktu(now)}`,
+  ]
+
+  if (laporanList.length === 0) {
+    return [...header, '', '✅ _Tidak ada gangguan belum selesai_ 🎉'].join('\n')
+  }
+
+  const lines = [...header, '']
+
+  const renderItem = (l: LaporanBelumSelesai, i: number) => {
+    lines.push(`${i + 1}. #${l.nomor_tiket}`)
+    lines.push(`   👤 ${l.nama_pelanggan}`)
+    lines.push(`   📍 ${l.lokasi}`)
+    if (l.keterangan) lines.push(`   📝 ${l.keterangan}`)
+    lines.push(`   ${STATUS_EMOJI[l.status]} ${STATUS_LABEL[l.status]} | ⏱ ${formatDurasi(l.created_at, now)}`)
+  }
+
+  const byCreated = (a: LaporanBelumSelesai, b: LaporanBelumSelesai) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+
+  // Per regu terdaftar
+  reguList.forEach((regu) => {
+    const items = laporanList.filter((l) => l.regu_id === regu.id).sort(byCreated)
+    if (items.length === 0) return
+    lines.push(`*${regu.nama.toUpperCase()}* (${items.length})`)
+    items.forEach(renderItem)
+    lines.push('')
+  })
+
+  // Laporan tanpa regu / regu tidak dikenal (belum ditugaskan)
+  const reguIds = new Set(reguList.map((r) => r.id))
+  const tanpaRegu = laporanList.filter((l) => !l.regu_id || !reguIds.has(l.regu_id)).sort(byCreated)
+  if (tanpaRegu.length > 0) {
+    lines.push(`*BELUM DITUGASKAN* (${tanpaRegu.length})`)
+    tanpaRegu.forEach(renderItem)
+    lines.push('')
+  }
+
+  lines.push('─────────────────────')
+  lines.push(`Total belum selesai: *${laporanList.length}*`)
+
+  return lines.join('\n')
 }
 
 export function buildPesanRekapPiket(

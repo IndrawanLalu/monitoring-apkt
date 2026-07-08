@@ -32,3 +32,13 @@ export function formatRelative(date: string | Date): string {
 export function formatShiftLabel(nama: string, jamMulai: string, jamSelesai: string): string {
   return `${nama} | ${jamMulai}–${jamSelesai}`
 }
+
+/** Durasi antara `from` dan `to` → "4 Jam 2 Menit" / "37 Menit". Bebas timezone (selisih murni). */
+export function formatDurasi(from: string | Date, to: string | Date = new Date()): string {
+  const ms = new Date(to).getTime() - new Date(from).getTime()
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  const totalMenit = Math.floor(ms / 60000)
+  const jam = Math.floor(totalMenit / 60)
+  const menit = totalMenit % 60
+  return jam > 0 ? `${jam} Jam ${menit} Menit` : `${menit} Menit`
+}
