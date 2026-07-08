@@ -11,13 +11,24 @@ interface LaporanWa {
   regu?: { nama: string } | null
 }
 
-export function buildPesanLaporanBaru(laporan: LaporanWa, magicUrl: string): string {
+export function buildPesanLaporanBaru(
+  laporan: LaporanWa,
+  magicUrl: string,
+  nomorAntrian?: number | null,
+): string {
   const lines = [
     `🔴 *LAPORAN BARU | #${laporan.nomor_tiket}*`,
+  ]
+
+  if (nomorAntrian && nomorAntrian > 0) {
+    lines.push(`🔢 Antrian   : No. ${nomorAntrian}`)
+  }
+
+  lines.push(
     `👤 Pelanggan : ${laporan.nama_pelanggan}${laporan.nomor_pelanggan ? ` | ${laporan.nomor_pelanggan}` : ''}`,
     `📍 Lokasi    : ${laporan.lokasi}`,
     `👷 Regu      : ${laporan.regu?.nama ?? '—'}`,
-  ]
+  )
 
   if (laporan.keterangan) {
     lines.push(`📝 Ket       : ${laporan.keterangan}`)

@@ -49,8 +49,22 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
 
   const waNum = formatWaNumber(regu?.nomor_hp)
 
+  // Nomor antrian = posisi laporan ini di antrian regu (belum selesai, urut created_at) —
+  // sama persis dengan yang dilihat pelanggan di /antrian/[token].
+  let nomorAntrian: number | null = null
+  if (regu?.id) {
+    const { data: antrian } = await admin
+      .from('laporan')
+      .select('id')
+      .eq('regu_id', regu.id)
+      .neq('status', 'selesai')
+      .order('created_at', { ascending: true })
+    const idx = (antrian ?? []).findIndex((a) => a.id === laporanId)
+    if (idx >= 0) nomorAntrian = idx + 1
+  }
+
   // Sertakan tag/mention ke dalam pesan
-  let pesan = buildPesanLaporanBaru({ ...laporan, regu }, magicUrl)
+  let pesan = buildPesanLaporanBaru({ ...laporan, regu }, magicUrl, nomorAntrian)
   if (waNum) {
     pesan = pesan.replace(`Regu      : ${regu?.nama}`, `Regu      : *${regu?.nama}* (@${waNum})`)
   }
