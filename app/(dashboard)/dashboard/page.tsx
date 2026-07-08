@@ -46,10 +46,13 @@ export default async function DashboardPage() {
       .select('id, ulp_id, nama, nomor_hp, created_at')
       .in('ulp_id', ulpIds)
       .order('nama'),
+    // Dashboard hanya butuh laporan AKTIF (semua umur) + SELESAI hari ini.
+    // Tanpa filter ini, query menyeret sampai 1000 laporan lama tiap load.
     supabase
       .from('laporan')
       .select('id, nomor_tiket, ulp_id, piket_id, regu_id, nama_pelanggan, nomor_pelanggan, lokasi, status, keterangan, magic_token, wa_message_id, created_at, updated_at, resolved_at')
       .in('ulp_id', ulpIds)
+      .or(`status.neq.selesai,and(status.eq.selesai,resolved_at.gte.${today}T00:00:00+08:00)`)
       .order('created_at', { ascending: false }),
     supabase
       .from('ulp')

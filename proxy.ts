@@ -2,6 +2,29 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host") ?? "";
+
+  // Rute publik (tanpa auth). Dicek DULUAN agar tidak memanggil
+  // supabase.auth.getUser() — 1 round-trip jaringan (~250ms) per request —
+  // untuk halaman yang memang tidak butuh sesi (antrian pelanggan, rekap, magic).
+  const isPublicRoute =
+    pathname.startsWith("/magic") ||
+    pathname.startsWith("/antrian") ||
+    pathname.startsWith("/rekap-laporan") ||
+    pathname.startsWith("/rekap-survey");
+
+  // Domain publik commandcenter.my.id: hanya rute publik, sisanya 404.
+  // Tidak perlu validasi auth sama sekali di domain ini.
+  if (hostname === "commandcenter.my.id") {
+    if (isPublicRoute) return NextResponse.next({ request });
+    return new NextResponse(null, { status: 404 });
+  }
+
+  // Domain internal: rute publik lolos tanpa validasi auth.
+  if (isPublicRoute) return NextResponse.next({ request });
+
+  // --- Mulai sini butuh sesi: baru buat client + validasi user ---
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -28,33 +51,6 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-  const hostname = request.headers.get("host") ?? "";
-
-  // Aturan khusus untuk domain publik commandcenter.my.id
-  if (hostname === "commandcenter.my.id") {
-    // Di domain publik, hanya izinkan akses ke rute /antrian.
-    if (
-      pathname.startsWith("/antrian") ||
-      pathname.startsWith("/rekap-laporan") ||
-      pathname.startsWith("/rekap-survey")
-    ) {
-      return supabaseResponse;
-    }
-    // Semua path lain di domain publik akan menampilkan 404 Not Found.
-    return new NextResponse(null, { status: 404 });
-  }
-
-  // Rute publik untuk domain internal (magic link petugas & fallback antrian)
-  const isPublicRoute =
-    pathname.startsWith("/magic") ||
-    pathname.startsWith("/antrian") ||
-    pathname.startsWith("/rekap-laporan") ||
-    pathname.startsWith("/rekap-survey");
-  if (isPublicRoute) {
-    return supabaseResponse;
-  }
 
   // Auth routes redirect to dashboard if already logged in
   if (pathname.startsWith("/login")) {

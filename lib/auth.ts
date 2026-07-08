@@ -26,13 +26,13 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   const admin = createAdminClient()
 
-  const [{ data: profile }, { data: userUlps }, { data: up3Row }] = await Promise.all([
-    admin.from('profiles').select('nama, role').eq('id', user.id).single(),
+  // Satu query profiles (nama, role, up3_id) — kolom up3_id sudah ada pasca-migration.
+  const [{ data: profile }, { data: userUlps }] = await Promise.all([
+    admin.from('profiles').select('nama, role, up3_id').eq('id', user.id).single(),
     admin
       .from('user_ulp')
       .select('ulp:ulp(id, nama, kode, wa_grup_id)')
       .eq('user_id', user.id),
-    admin.from('profiles').select('up3_id').eq('id', user.id).maybeSingle(),
   ])
 
   if (!profile) return null
@@ -41,7 +41,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     .map((row) => row.ulp as unknown as UlpInfo)
     .filter(Boolean)
 
-  const up3Id = (up3Row as any)?.up3_id ?? null
+  const up3Id = (profile as any).up3_id ?? null
 
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value
