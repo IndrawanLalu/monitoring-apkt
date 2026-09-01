@@ -25,6 +25,12 @@ create index if not exists idx_laporan_callback
   on laporan (created_at)
   where tanggal_callback is not null;
 
+-- ── 2b. Index di kolom yang seluruhnya NULL ──────────────────
+-- laporan.piket_id NULL untuk SELURUH 5.590 baris, dan tidak ada satu pun
+-- jalur kode yang mengisinya (itulah sebabnya rekap memakai resolved_piket_id).
+-- Index ini tidak mungkin berguna, tapi tetap harus diperbarui tiap insert.
+drop index if exists idx_laporan_piket_id;
+
 -- ── 3. Kandidat yang tumpang-tindih ──────────────────────────
 -- JANGAN dijalankan membabi buta. Lihat dulu hasil query diagnostik di
 -- bagian 4 — kolom idx_scan menunjukkan berapa kali index benar-benar dipakai
@@ -40,6 +46,19 @@ create index if not exists idx_laporan_callback
 -- drop index if exists idx_laporan_ulp_id;
 -- drop index if exists idx_laporan_status;
 -- drop index if exists idx_laporan_resolved_piket_id;
+
+-- ── 3b. riwayat_status: ditulis, tidak pernah dibaca ─────────
+-- Ada 6 tempat yang INSERT ke riwayat_status dan NOL tempat yang membacanya
+-- di seluruh aplikasi. Saat ini 11.998 baris (2,1 per laporan) dan tumbuh
+-- 2× lebih cepat dari tabel laporan.
+--
+-- Di 2000 laporan/hari itu ~4.200 baris/hari data yang tidak pernah dilihat.
+-- Jangan buru-buru dihapus — jejak audit tetap berharga untuk penelusuran.
+-- Tapi jadikan pilihan sadar: tampilkan di UI (riwayat pada detail laporan),
+-- atau beri kebijakan retensi. Contoh pembersihan >1 tahun:
+--
+-- delete from riwayat_status
+-- where created_at < now() - interval '1 year';
 
 -- ── 4. Diagnostik ────────────────────────────────────────────
 -- Pemakaian tiap index + ukurannya. idx_scan = 0 artinya belum pernah dipakai.
