@@ -177,6 +177,30 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
     }
   }, [data.calendarDays])
 
+  /**
+   * Daftar "tersedikit" hanya boleh berisi petugas yang memang bertugas penuh
+   * pada periode ini. Tanpa penyaringan, yang muncul adalah petugas yang baru
+   * masuk regu, sedang cuti, atau baru didaftarkan — mereka tampil paling
+   * bawah karena hitungannya 1–2, lalu ditandai merah di dashboard yang
+   * dilihat manajemen. Itu salah sasaran.
+   *
+   * Ambangnya relatif terhadap median, bukan angka tetap, karena volume tiap
+   * bulan sangat berbeda (Juni 3.801 laporan, Agustus 239).
+   */
+  const tersedikit = useMemo(() => {
+    const semua = data.petugasSelesaiList
+    if (semua.length < 4) return { ambang: 0, daftar: [] as typeof semua }
+
+    const urut = [...semua].map(p => p.count).sort((a, b) => a - b)
+    const median = urut[Math.floor(urut.length / 2)]
+    const ambang = Math.max(3, Math.round(median * 0.25))
+    const layak = semua.filter(p => p.count >= ambang)
+
+    // Kalau nyaris semua tersaring, daftarnya tidak lagi bermakna.
+    if (layak.length < 4) return { ambang, daftar: [] as typeof semua }
+    return { ambang, daftar: [...layak].reverse().slice(0, 5) }
+  }, [data.petugasSelesaiList])
+
   function navigate(params: Record<string, string | null>) {
     const sp = new URLSearchParams()
     const yr = params.year   ?? String(data.year)
@@ -356,16 +380,21 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
               )}
             </Card>
 
-            {data.petugasSelesaiList.length > 1 && (
+            {tersedikit.daftar.length > 0 && (
               <Card>
-                <SectionTitle>📉 Petugas Gangguan Selesai Tersedikit</SectionTitle>
+                <SectionTitle>📉 Gangguan Selesai Tersedikit</SectionTitle>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '-6px 0 12px', lineHeight: 1.5 }}>
+                  Hanya petugas dengan minimal {tersedikit.ambang} gangguan selesai pada periode ini.
+                  Yang di bawah itu dianggap belum bertugas penuh — cuti, baru masuk regu, atau
+                  baru didaftarkan — sehingga tidak dibandingkan.
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[...data.petugasSelesaiList].reverse().slice(0, 5).map((p, i) => (
+                  {tersedikit.daftar.map((p, i) => (
                     <div key={`${p.nama}-${p.ulpNama}-bot`} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '10px 12px', borderRadius: 10,
-                      backgroundColor: 'rgba(220,38,38,0.06)',
-                      border: '1.5px solid rgba(220,38,38,0.25)',
+                      backgroundColor: 'var(--bg-surface-2)',
+                      border: '1.5px solid var(--border)',
                     }}>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{i + 1}. {p.nama}</p>
@@ -375,7 +404,7 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} title="Durasi penanganan rata-rata">
                           ⏱ {durasi(p.menitRata)}
                         </span>
-                        <span style={{ fontSize: 18, fontWeight: 900, color: '#DC2626' }}>{p.count}</span>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-secondary)' }}>{p.count}</span>
                       </span>
                     </div>
                   ))}
