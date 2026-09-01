@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { SHIFT_LABEL } from '@/constants'
 import { formatTanggal } from '@/lib/utils/format'
 import type { ShiftType } from '@/types'
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface ShiftTypeRow {
   id: string
@@ -73,6 +74,7 @@ function isShiftActive(jamMulai: string, jamSelesai: string): boolean {
 }
 
 export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguList, petugasMaster }: Props) {
+  const konfirmasi = useKonfirmasi()
   const [piketList, setPiketList] = useState<PiketRow[]>(initial)
   const [namaCC, setNamaCC] = useState('')
   const [selectedUlps, setSelectedUlps] = useState<string[]>(ulps.map(u => u.id))
@@ -198,7 +200,12 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   }
 
   async function handleHapus(id: string) {
-    if (!confirm('Hapus piket ini?')) return
+    const ok = await konfirmasi({
+      judul: 'Hapus piket ini?',
+      pesan: 'Jadwal piket beserta penugasan petugasnya akan dihapus permanen.',
+      varian: 'danger',
+    })
+    if (!ok) return
     await fetch(`/api/piket/${id}`, { method: 'DELETE' })
     setPiketList((prev) => prev.filter((p) => p.id !== id))
   }

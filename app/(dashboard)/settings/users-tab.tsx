@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface UlpInfo {
   id: string
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function UsersTab({ ulps, onToast }: Props) {
+  const konfirmasi = useKonfirmasi()
   const [users, setUsers] = useState<UserCc[]>([])
   const [loading, setLoading] = useState(true)
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
@@ -133,7 +135,17 @@ export function UsersTab({ ulps, onToast }: Props) {
   }
 
   async function handleDelete(user: UserCc) {
-    if (!confirm(`Hapus akun CC "${user.nama}" (${user.email}) secara permanen?`)) return
+    const ok = await konfirmasi({
+      judul: 'Hapus akun ini secara permanen?',
+      pesan: 'Akun tidak bisa dipakai login lagi dan aksesnya ke semua ULP dicabut.',
+      rincian: [
+        { label: 'Nama', nilai: user.nama },
+        { label: 'Email', nilai: user.email },
+      ],
+      varian: 'danger',
+      labelAksi: 'Hapus akun',
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/admin/users/${user.id}`, { method: 'DELETE' })
       const json = await res.json()

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import type { Regu, Petugas } from "@/types";
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface Props {
   ulpId: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function PetugasTab({ ulpId, reguList, petugasList, setPetugasList }: Props) {
+  const konfirmasi = useKonfirmasi()
   const [nama, setNama] = useState("");
   const [nomorHp, setNomorHp] = useState("");
   const [reguId, setReguId] = useState("");
@@ -37,7 +39,12 @@ export function PetugasTab({ ulpId, reguList, petugasList, setPetugasList }: Pro
   }
 
   async function handleHapus(id: string) {
-    if (!confirm("Hapus petugas ini?")) return;
+    const ok = await konfirmasi({
+      judul: "Hapus petugas ini?",
+      pesan: "Petugas akan dihapus permanen dari daftar.",
+      varian: "danger",
+    });
+    if (!ok) return;
     await fetch(`/api/petugas/${id}`, { method: "DELETE" });
     setPetugasList((prev) => prev.filter((p) => p.id !== id));
   }
