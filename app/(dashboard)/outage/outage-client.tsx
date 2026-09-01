@@ -45,6 +45,45 @@ export interface SurveyItem {
   adaApd: string; adaHalTidakSenang: string; pesanSaran: string | null
 }
 
+/** Bentuk balikan fungsi Postgres rekap_outage(). */
+export interface RekapOutage {
+  kpi: {
+    totalSelesai: number
+    totalMasuk: number
+    menitRata: number | null
+    menitTengah: number | null
+    persenDibawah3Jam: number | null
+    totalSurvey: number
+    indeksKepuasan: number | null
+    masihTerbuka: number
+  }
+  trenHarian: { tanggal: string; masuk: number; selesai: number }[]
+  sebaranDurasi: { label: string; jumlah: number }[]
+  perUlp: { ulpId: string; nama: string; selesai: number; menitRata: number | null }[]
+  jamSibuk: { hari: number; jam: number; jumlah: number }[]
+  petugasSelesai: { nama: string; ulpNama: string; jumlah: number; menitRata: number | null }[]
+  petugasPuas: {
+    nama: string; ulpNama: string
+    sangatPuas: number; puas: number; biasa: number; tidakPuas: number; sangatTidakPuas: number
+    total: number
+  }[]
+  kalender: { tanggal: string; total: number; petugas: { nama: string; jumlah: number }[] }[]
+  kepatuhan: {
+    totalSurvey: number
+    persen3s: number | null
+    persenIdentitas: number | null
+    persenApd: number | null
+    jumlahPungli: number
+    jumlahTips: number
+    jumlahTidakSenang: number
+  }
+  insiden: {
+    nomorTiket: string; namaPelanggan: string; alamat: string; submittedAt: string
+    pungli: boolean; tips: boolean; tidakSenang: boolean
+    pesanSaran: string | null; petugas: string[]
+  }[]
+}
+
 export interface OutageData {
   year: number
   month: number
@@ -55,6 +94,8 @@ export interface OutageData {
   petugasPuasList: { nama: string; ulpNama: string; sangat_puas: number; puas: number; biasa: number; tidak_puas: number; sangat_tidak_puas: number; total: number }[]
   surveyList: SurveyItem[]
   calendarDays: { tanggal: string; petugas: { nama: string; count: number }[]; total: number }[]
+  /** Agregat mentah dari rekap_outage — dipakai lapis KPI & panel visual. */
+  rekap: RekapOutage
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {

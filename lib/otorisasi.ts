@@ -79,6 +79,30 @@ export async function requireLaporan(
   return { profile, data: { laporan: laporan as Record<string, unknown> } }
 }
 
+/**
+ * Semua ULP yang boleh dilihat sebuah profil.
+ *
+ * Operator biasa: hanya ULP yang di-assign ke dirinya.
+ * Admin ber-UP3: SELURUH ULP di UP3-nya — supaya dashboard manajemen bisa
+ * membandingkan antar-ULP, bukan hanya yang kebetulan di-assign.
+ *
+ * Ini melebarkan cakupan BACA saja. Jalur tulis tetap lewat requireUlp(),
+ * yang memang sudah mengizinkan admin menjangkau ULP satu UP3.
+ */
+export async function ulpIdsTerlihat(profile: UserProfile): Promise<string[]> {
+  const milikSendiri = profile.ulps.map((u) => u.id)
+
+  if (profile.role !== 'admin' || !profile.up3_id) return milikSendiri
+
+  const admin = createAdminClient()
+  const { data } = await admin.from('ulp').select('id').eq('up3_id', profile.up3_id)
+  const seUp3 = (data ?? []).map((u) => u.id as string)
+
+  // Gabung: kalau kolom up3_id belum terisi untuk sebagian ULP, akses lama
+  // tetap dipertahankan alih-alih hilang.
+  return Array.from(new Set([...milikSendiri, ...seUp3]))
+}
+
 /** Pastikan `reguId` benar-benar milik `ulpId` — mencegah pasangan regu/ULP silang. */
 export async function reguMilikUlp(reguId: string, ulpId: string): Promise<boolean> {
   const admin = createAdminClient()

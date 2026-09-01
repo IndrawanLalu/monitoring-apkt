@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
+import { ulpIdsTerlihat } from '@/lib/otorisasi'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { OutageClient, type OutageData } from './outage-client'
+import { OutageClient, type OutageData, type RekapOutage } from './outage-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,12 +21,14 @@ export default async function OutagePage({
   // month = 0 berarti semua bulan dalam tahun tersebut
 
   const admin = createAdminClient()
-  const ulpIds = profile.ulps.map(u => u.id)
+
+  // Admin melihat seluruh ULP di UP3-nya, operator hanya ULP yang di-assign.
+  const ulpIds = await ulpIdsTerlihat(profile)
   if (ulpIds.length === 0) redirect('/settings')
+
   const selectedUlpId = sp.ulp_id && ulpIds.includes(sp.ulp_id) ? sp.ulp_id : null
   const filteredUlpIds = selectedUlpId ? [selectedUlpId] : ulpIds
 
-  // Date range
   const startDate = month === 0
     ? `${year}-01-01T00:00:00+08:00`
     : `${year}-${String(month).padStart(2, '0')}-01T00:00:00+08:00`
@@ -34,221 +37,115 @@ export default async function OutagePage({
     ? `${year}-12-31T23:59:59+08:00`
     : `${year}-${String(month).padStart(2, '0')}-${lastDay}T23:59:59+08:00`
 
-  // Fetch laporan selesai in period.
-  // Supabase membatasi 1000 baris/req → paginasi via .range() agar semua laporan terambil.
-  // (Bulan ramai bisa >3000 laporan; tanpa paginasi statistik, kalender & survey ikut terpotong)
-  type LaporanRow = {
-    id: string; nomor_tiket: string; ulp_id: string; regu_id: string; piket_id: string
-    resolved_piket_id: string | null; resolved_petugas_names: string[] | null
-    lokasi: string; resolved_at: string; created_at: string
-  }
-  const laporan: LaporanRow[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await admin
-      .from('laporan')
-      .select('id, nomor_tiket, ulp_id, regu_id, piket_id, resolved_piket_id, resolved_petugas_names, lokasi, resolved_at, created_at')
-      .eq('status', 'selesai')
-      .in('ulp_id', filteredUlpIds)
-      .gte('resolved_at', startDate)
-      .lte('resolved_at', endDate)
-      .order('resolved_at', { ascending: false })
-      .range(from, from + 999)
-    if (error || !data) break
-    laporan.push(...(data as unknown as LaporanRow[]))
-    if (data.length < 1000) break
-  }
-  // Gunakan resolved_piket_id (piket aktif saat selesai), fallback ke piket_id untuk data lama
-  const piketIds = [...new Set(laporan.map(l => (l.resolved_piket_id ?? l.piket_id) as string).filter(Boolean))]
+  // Seluruh agregasi dikerjakan Postgres lewat rekap_outage(). Versi sebelumnya
+  // menarik SETIAP laporan selesai satu bulan ke memori Node — pada 1000
+  // laporan/hari itu ~30.000 baris per pembukaan halaman — lalu menghitungnya
+  // di JavaScript, ditambah query piket_petugas yang dipotong per 150 id.
+  const [{ data: rekapRaw, error: rekapError }, { data: surveysRaw }, { data: ulpsRaw }] = await Promise.all([
+    admin.rpc('rekap_outage', {
+      p_ulp_ids: filteredUlpIds,
+      p_mulai: startDate,
+      p_selesai: endDate,
+    }),
+    // Daftar survey butuh baris utuh untuk modal detail, tapi jumlahnya jauh
+    // lebih kecil dari jumlah laporan sehingga aman diambil apa adanya.
+    admin
+      .from('survey_laporan')
+      .select('laporan_id, kepuasan_keseluruhan, submitted_at, nama_pelanggan, alamat, kondisi_setelah, kualitas_pelayanan, kecepatan_respon, ada_pungli, ada_tips, ada_3s, ada_identitas, ada_apd, ada_hal_tidak_senang, pesan_saran, laporan:laporan_id!inner(nomor_tiket, lokasi, status, ulp_id, resolved_at, resolved_petugas_names)')
+      .eq('laporan.status', 'selesai')
+      .in('laporan.ulp_id', filteredUlpIds)
+      .gte('laporan.resolved_at', startDate)
+      .lte('laporan.resolved_at', endDate)
+      .order('submitted_at', { ascending: false }),
+    admin.from('ulp').select('id, nama').in('id', ulpIds).order('nama'),
+  ])
 
-  // Fetch piket_petugas for those pikets — chunk .in() agar URL tak melampaui batas server
-  const ppData: { piket_id: string; regu_id: string; petugas: { id: string; nama: string } | null }[] = []
-  for (let i = 0; i < piketIds.length; i += 150) {
-    const { data } = await admin
-      .from('piket_petugas')
-      .select('piket_id, regu_id, petugas:petugas_apkt(id, nama)')
-      .in('piket_id', piketIds.slice(i, i + 150))
-    ;(data ?? []).forEach(d => {
-      ppData.push({
-        piket_id: d.piket_id as string,
-        regu_id: d.regu_id as string,
-        petugas: d.petugas as unknown as { id: string; nama: string } | null,
-      })
-    })
+  if (rekapError) {
+    // Paling sering: fungsi rekap_outage belum dijalankan di SQL Editor.
+    console.error('[outage] rekap_outage gagal:', rekapError)
+    return (
+      <div style={{ padding: 32, maxWidth: 620, margin: '40px auto' }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 10px' }}>
+          Dashboard Outage belum siap
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+          Fungsi agregasi <code>rekap_outage</code> belum ada di database. Jalankan{' '}
+          <code>supabase/rekap_outage.sql</code> di SQL Editor Supabase, lalu muat ulang halaman ini.
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 14, fontFamily: 'monospace' }}>
+          {rekapError.message}
+        </p>
+      </div>
+    )
   }
 
-  // Fetch surveys via inner join ke laporan (filter status/ulp/periode di sisi DB).
-  // Hindari .in('laporan_id', ribuan id) yang bikin URL kepanjangan → Bad Request → survey kosong.
-  type SurveyRow = {
+  const rekap = rekapRaw as unknown as RekapOutage
+  const ulpMap = Object.fromEntries((ulpsRaw ?? []).map(u => [u.id as string, u.nama as string]))
+
+  type SurveyJoin = {
     laporan_id: string; kepuasan_keseluruhan: string; submitted_at: string
     nama_pelanggan: string; alamat: string
     kondisi_setelah: string; kualitas_pelayanan: string; kecepatan_respon: string
     ada_pungli: string; ada_tips: string; ada_3s: string; ada_identitas: string
     ada_apd: string; ada_hal_tidak_senang: string; pesan_saran: string | null
-  }
-  const surveysRaw: SurveyRow[] = []
-  {
-    const { data } = await admin
-      .from('survey_laporan')
-      .select('laporan_id, kepuasan_keseluruhan, submitted_at, nama_pelanggan, alamat, kondisi_setelah, kualitas_pelayanan, kecepatan_respon, ada_pungli, ada_tips, ada_3s, ada_identitas, ada_apd, ada_hal_tidak_senang, pesan_saran, laporan:laporan_id!inner(status, ulp_id, resolved_at)')
-      .eq('laporan.status', 'selesai')
-      .in('laporan.ulp_id', filteredUlpIds)
-      .gte('laporan.resolved_at', startDate)
-      .lte('laporan.resolved_at', endDate)
-      .order('submitted_at', { ascending: false })
-    ;(data ?? []).forEach(d => surveysRaw.push(d as unknown as SurveyRow))
+    laporan: { nomor_tiket: string; lokasi: string; ulp_id: string; resolved_petugas_names: string[] | null }
   }
 
-  // Fetch ULP info
-  const { data: ulpsRaw } = await admin.from('ulp').select('id, nama').in('id', ulpIds).order('nama')
-  const ulpMap = Object.fromEntries((ulpsRaw ?? []).map(u => [u.id as string, u.nama as string]))
+  const surveyList = ((surveysRaw ?? []) as unknown as SurveyJoin[]).map(s => ({
+    nomorTiket:   s.laporan.nomor_tiket,
+    lokasi:       s.laporan.lokasi,
+    ulpNama:      ulpMap[s.laporan.ulp_id] ?? '—',
+    // Snapshot nama petugas: terisi untuk 99,86% laporan selesai. Rantai
+    // fallback lama (piket_petugas → petugas_apkt) dibuang karena hanya
+    // menyelamatkan 8 baris dari 5.586, dengan biaya beberapa query per halaman.
+    petugas:      s.laporan.resolved_petugas_names ?? [],
+    kepuasan:     s.kepuasan_keseluruhan,
+    submittedAt:  s.submitted_at,
+    namaPelanggan:     s.nama_pelanggan,
+    alamat:            s.alamat,
+    kondisiSetelah:    s.kondisi_setelah,
+    kualitasPelayanan: s.kualitas_pelayanan,
+    kecepatanRespon:   s.kecepatan_respon,
+    adaPungli:         s.ada_pungli,
+    adaTips:           s.ada_tips,
+    ada3s:             s.ada_3s,
+    adaIdentitas:      s.ada_identitas,
+    adaApd:            s.ada_apd,
+    adaHalTidakSenang: s.ada_hal_tidak_senang,
+    pesanSaran:        s.pesan_saran,
+  }))
 
-  // Build map: (piket_id + regu_id) → petugas[]
-  const ppMap: Record<string, string[]> = {}
-  ppData.forEach(pp => {
-    if (!pp.petugas) return
-    const key = `${pp.piket_id}__${pp.regu_id}`
-    if (!ppMap[key]) ppMap[key] = []
-    ppMap[key].push(pp.petugas.nama)
-  })
-
-  // Fallback map: regu_id → petugas[] (dipakai jika piket_petugas tidak punya data)
-  const reguIds = [...new Set(laporan.map(l => l.regu_id as string).filter(Boolean))]
-  const reguPetugasMap: Record<string, string[]> = {}
-  if (reguIds.length > 0) {
-    const { data: reguPetugasRaw } = await admin
-      .from('petugas_apkt')
-      .select('regu_id, nama')
-      .in('regu_id', reguIds)
-    ;(reguPetugasRaw ?? []).forEach(p => {
-      const rid = p.regu_id as string
-      if (!reguPetugasMap[rid]) reguPetugasMap[rid] = []
-      reguPetugasMap[rid].push(p.nama as string)
-    })
-  }
-
-  // For each laporan, get petugas names.
-  // Primary: resolved_petugas_names snapshot (data baru, permanen).
-  // Fallback 1: resolved_piket_id + regu_id (data lama sebelum fitur snapshot).
-  // Fallback 2: piket_id + regu_id.
-  // Fallback 3: semua petugas di regu.
-  const getLaporanPetugas = (l: typeof laporan[0]): string[] => {
-    const snap = l.resolved_petugas_names as string[] | null
-    if (snap && snap.length > 0) return snap
-    if (l.regu_id) {
-      const resolvedPiketId = l.resolved_piket_id ?? l.piket_id
-      if (resolvedPiketId) {
-        const fromPiket = ppMap[`${resolvedPiketId}__${l.regu_id}`]
-        if (fromPiket && fromPiket.length > 0) return fromPiket
-      }
-      return reguPetugasMap[l.regu_id as string] ?? []
-    }
-    return []
-  }
-
-  // ─── Stats: petugas selesai count ────────────────────────────
-  const petugasSelesaiMap: Record<string, { nama: string; ulpNama: string; count: number }> = {}
-  laporan.forEach(l => {
-    const petugas = getLaporanPetugas(l)
-    const ulpNama = ulpMap[l.ulp_id as string] ?? '—'
-    petugas.forEach(nama => {
-      const key = `${nama}__${l.ulp_id}`
-      if (!petugasSelesaiMap[key]) petugasSelesaiMap[key] = { nama, ulpNama, count: 0 }
-      petugasSelesaiMap[key].count++
-    })
-  })
-  const petugasSelesaiList = Object.values(petugasSelesaiMap)
-    .sort((a, b) => b.count - a.count)
-
-  // ─── Stats: rating per petugas (semua kategori) ──────────────
-  const surveyByLaporan = Object.fromEntries(surveysRaw.map(s => [s.laporan_id, s.kepuasan_keseluruhan]))
-  const petugasPuasMap: Record<string, {
-    nama: string; ulpNama: string;
-    sangat_puas: number; puas: number; biasa: number; tidak_puas: number; sangat_tidak_puas: number;
-    total: number
-  }> = {}
-  laporan.forEach(l => {
-    const rating = surveyByLaporan[l.id as string]
-    if (!rating) return
-    const petugas = getLaporanPetugas(l)
-    const ulpNama = ulpMap[l.ulp_id as string] ?? '—'
-    petugas.forEach(nama => {
-      const key = `${nama}__${l.ulp_id}`
-      if (!petugasPuasMap[key]) petugasPuasMap[key] = { nama, ulpNama, sangat_puas: 0, puas: 0, biasa: 0, tidak_puas: 0, sangat_tidak_puas: 0, total: 0 }
-      petugasPuasMap[key].total++
-      if (rating === 'sangat_puas')       petugasPuasMap[key].sangat_puas++
-      else if (rating === 'puas')         petugasPuasMap[key].puas++
-      else if (rating === 'biasa')        petugasPuasMap[key].biasa++
-      else if (rating === 'tidak_puas')   petugasPuasMap[key].tidak_puas++
-      else if (rating === 'sangat_tidak_puas') petugasPuasMap[key].sangat_tidak_puas++
-    })
-  })
-  const petugasPuasList = Object.values(petugasPuasMap)
-    .sort((a, b) => b.sangat_puas - a.sangat_puas || b.puas - a.puas || b.total - a.total)
-
-  // ─── Survey list ─────────────────────────────────────────────
-  const surveyList = surveysRaw.map(s => {
-    const l = laporan.find(x => x.id === s.laporan_id)
-    if (!l) return null
-    return {
-      nomorTiket:   l.nomor_tiket as string,
-      lokasi:       l.lokasi as string,
-      ulpNama:      ulpMap[l.ulp_id as string] ?? '—',
-      petugas:      getLaporanPetugas(l),
-      kepuasan:     s.kepuasan_keseluruhan,
-      submittedAt:  s.submitted_at,
-      namaPelanggan:      s.nama_pelanggan,
-      alamat:             s.alamat,
-      kondisiSetelah:     s.kondisi_setelah,
-      kualitasPelayanan:  s.kualitas_pelayanan,
-      kecepatanRespon:    s.kecepatan_respon,
-      adaPungli:          s.ada_pungli,
-      adaTips:            s.ada_tips,
-      ada3s:              s.ada_3s,
-      adaIdentitas:       s.ada_identitas,
-      adaApd:             s.ada_apd,
-      adaHalTidakSenang:  s.ada_hal_tidak_senang,
-      pesanSaran:         s.pesan_saran,
-    }
-  }).filter(Boolean) as OutageData['surveyList']
-
-  // ─── Calendar ────────────────────────────────────────────────
+  // Kalender: RPC mengembalikan hanya tanggal yang ada isinya. Di sini
+  // dilengkapi jadi rangkaian penuh (1..lastDay, atau 12 bulan saat month=0)
+  // supaya grid kalender tidak berlubang.
+  const kalenderMap = Object.fromEntries((rekap.kalender ?? []).map(k => [k.tanggal, k]))
   const calendarDays: OutageData['calendarDays'] = []
 
   if (month === 0) {
-    // Semua bulan: grup per bulan (1-12)
-    const calMap: Record<number, Record<string, number>> = {}
-    laporan.forEach(l => {
-      if (!l.resolved_at) return
-      const m = parseInt((l.resolved_at as string).substring(5, 7))
-      const petugas = getLaporanPetugas(l)
-      if (!calMap[m]) calMap[m] = {}
-      petugas.forEach(nama => { calMap[m][nama] = (calMap[m][nama] ?? 0) + 1 })
-    })
+    const perBulan: Record<number, Record<string, number>> = {}
+    for (const k of rekap.kalender ?? []) {
+      const m = parseInt(k.tanggal.substring(5, 7))
+      perBulan[m] ??= {}
+      for (const p of k.petugas) perBulan[m][p.nama] = (perBulan[m][p.nama] ?? 0) + p.jumlah
+    }
     for (let m = 1; m <= 12; m++) {
-      const dayData = calMap[m] ?? {}
+      const isi = perBulan[m] ?? {}
       calendarDays.push({
         tanggal: `${year}-${String(m).padStart(2, '0')}`,
-        petugas: Object.entries(dayData).map(([nama, count]) => ({ nama, count })).sort((a, b) => b.count - a.count),
-        total: Object.values(dayData).reduce((s, v) => s + v, 0),
+        petugas: Object.entries(isi).map(([nama, count]) => ({ nama, count })).sort((a, b) => b.count - a.count),
+        total: (rekap.kalender ?? [])
+          .filter(k => parseInt(k.tanggal.substring(5, 7)) === m)
+          .reduce((s, k) => s + k.total, 0),
       })
     }
   } else {
-    // Bulan spesifik: grup per hari (1-lastDay)
-    const calMap: Record<string, Record<string, number>> = {}
-    laporan.forEach(l => {
-      if (!l.resolved_at) return
-      const tgl = (l.resolved_at as string).split('T')[0]
-      const petugas = getLaporanPetugas(l)
-      if (!calMap[tgl]) calMap[tgl] = {}
-      petugas.forEach(nama => { calMap[tgl][nama] = (calMap[tgl][nama] ?? 0) + 1 })
-    })
     for (let d = 1; d <= lastDay; d++) {
       const tgl = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      const dayData = calMap[tgl] ?? {}
+      const k = kalenderMap[tgl]
       calendarDays.push({
         tanggal: tgl,
-        petugas: Object.entries(dayData).map(([nama, count]) => ({ nama, count })).sort((a, b) => b.count - a.count),
-        total: Object.values(dayData).reduce((s, v) => s + v, 0),
+        petugas: (k?.petugas ?? []).map(p => ({ nama: p.nama, count: p.jumlah })),
+        total: k?.total ?? 0,
       })
     }
   }
@@ -257,11 +154,19 @@ export default async function OutagePage({
     year, month,
     ulps: (ulpsRaw ?? []).map(u => ({ id: u.id as string, nama: u.nama as string })),
     selectedUlpId,
-    totalSelesai: laporan.length,
-    petugasSelesaiList,
-    petugasPuasList,
+    totalSelesai: rekap.kpi.totalSelesai,
+    petugasSelesaiList: (rekap.petugasSelesai ?? []).map(p => ({
+      nama: p.nama, ulpNama: p.ulpNama, count: p.jumlah,
+    })),
+    petugasPuasList: (rekap.petugasPuas ?? []).map(p => ({
+      nama: p.nama, ulpNama: p.ulpNama,
+      sangat_puas: p.sangatPuas, puas: p.puas, biasa: p.biasa,
+      tidak_puas: p.tidakPuas, sangat_tidak_puas: p.sangatTidakPuas,
+      total: p.total,
+    })),
     surveyList,
     calendarDays,
+    rekap,
   }
 
   return <OutageClient data={data} profileRole={profile.role} />
