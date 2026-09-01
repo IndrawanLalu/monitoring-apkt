@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { PanelRingkasan } from './panel-ringkasan'
 
 const KEPUASAN_LABEL: Record<string, { label: string; emoji: string; color: string }> = {
   sangat_puas:       { label: 'Sangat Puas',       emoji: '😄', color: '#059669' },
@@ -96,6 +97,8 @@ export interface OutageData {
   calendarDays: { tanggal: string; petugas: { nama: string; count: number }[]; total: number }[]
   /** Agregat mentah dari rekap_outage — dipakai lapis KPI & panel visual. */
   rekap: RekapOutage
+  /** Periode pembanding (bulan/tahun sebelumnya) untuk delta KPI. */
+  rekapSebelum: RekapOutage | null
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -133,12 +136,12 @@ function Badge({ color, children }: { color: string; children: React.ReactNode }
   )
 }
 
-type Tab = 'rating' | 'selesai' | 'survey' | 'kalender'
+type Tab = 'ringkasan' | 'rating' | 'selesai' | 'survey' | 'kalender'
 
 export function OutageClient({ data }: { data: OutageData; profileRole: string }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [tab, setTab] = useState<Tab>('rating')
+  const [tab, setTab] = useState<Tab>('ringkasan')
   const [detail, setDetail] = useState<SurveyItem | null>(null)
 
   const calendarMatrix = useMemo(() => {
@@ -176,6 +179,7 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
   }
 
   const TABS: { key: Tab; label: string }[] = [
+    { key: 'ringkasan', label: '📊 Ringkasan' },
     { key: 'rating',   label: '⭐ Rating Puas' },
     { key: 'selesai',  label: '✅ Kinerja Petugas' },
     { key: 'survey',   label: '📋 Daftar Survey' },
@@ -249,6 +253,10 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
 
         {/* ─── TAB: Rating Puas ──────────────────────────────────── */}
+        {tab === 'ringkasan' && (
+          <PanelRingkasan rekap={data.rekap} sebelum={data.rekapSebelum} />
+        )}
+
         {tab === 'rating' && (
           <Card>
             <SectionTitle>⭐ Rating Kepuasan per Petugas</SectionTitle>

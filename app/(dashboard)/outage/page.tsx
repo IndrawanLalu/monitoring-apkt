@@ -41,11 +41,30 @@ export default async function OutagePage({
   // menarik SETIAP laporan selesai satu bulan ke memori Node — pada 1000
   // laporan/hari itu ~30.000 baris per pembukaan halaman — lalu menghitungnya
   // di JavaScript, ditambah query piket_petugas yang dipotong per 150 id.
-  const [{ data: rekapRaw, error: rekapError }, { data: surveysRaw }, { data: ulpsRaw }] = await Promise.all([
+  // Periode pembanding untuk delta KPI: bulan sebelumnya, atau tahun
+  // sebelumnya kalau filter sedang "semua bulan".
+  const sebelumnya = month === 0
+    ? { mulai: `${year - 1}-01-01T00:00:00+08:00`, akhir: `${year - 1}-12-31T23:59:59+08:00` }
+    : (() => {
+        const y = month === 1 ? year - 1 : year
+        const m = month === 1 ? 12 : month - 1
+        const hariAkhir = new Date(y, m, 0).getDate()
+        return {
+          mulai: `${y}-${String(m).padStart(2, '0')}-01T00:00:00+08:00`,
+          akhir: `${y}-${String(m).padStart(2, '0')}-${hariAkhir}T23:59:59+08:00`,
+        }
+      })()
+
+  const [{ data: rekapRaw, error: rekapError }, { data: rekapSebelumRaw }, { data: surveysRaw }, { data: ulpsRaw }] = await Promise.all([
     admin.rpc('rekap_outage', {
       p_ulp_ids: filteredUlpIds,
       p_mulai: startDate,
       p_selesai: endDate,
+    }),
+    admin.rpc('rekap_outage', {
+      p_ulp_ids: filteredUlpIds,
+      p_mulai: sebelumnya.mulai,
+      p_selesai: sebelumnya.akhir,
     }),
     // Daftar survey butuh baris utuh untuk modal detail, tapi jumlahnya jauh
     // lebih kecil dari jumlah laporan sehingga aman diambil apa adanya.
@@ -80,6 +99,7 @@ export default async function OutagePage({
   }
 
   const rekap = rekapRaw as unknown as RekapOutage
+  const rekapSebelum = (rekapSebelumRaw ?? null) as unknown as RekapOutage | null
   const ulpMap = Object.fromEntries((ulpsRaw ?? []).map(u => [u.id as string, u.nama as string]))
 
   type SurveyJoin = {
@@ -167,6 +187,7 @@ export default async function OutagePage({
     surveyList,
     calendarDays,
     rekap,
+    rekapSebelum,
   }
 
   return <OutageClient data={data} profileRole={profile.role} />
