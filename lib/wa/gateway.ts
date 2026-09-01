@@ -154,17 +154,37 @@ export async function gatewayListGroups(userId: string): Promise<{ id: string; n
  * Cari sesi gateway yang OPEN untuk sebuah ULP (di antara user ULP tsb).
  * Pengganti getWaClientForUlp() versi whatsapp-web.js.
  */
+// Cache pendek hasil pencarian sesi per ULP. Fungsi ini dipanggil pada SETIAP
+// kiriman WA — tanpa cache, tiap laporan baru berarti satu query `user_ulp`
+// plus satu tarikan daftar sesi dari gateway. Di volume ribuan laporan per hari
+// itu ribuan round-trip untuk jawaban yang praktis tidak berubah.
+// TTL sengaja pendek agar sesi yang putus tetap cepat terdeteksi.
+const TTL_SESI_MS = 30_000
+const cacheSesi = new Map<string, { sessionId: string | null; kedaluwarsa: number }>()
+
+/** Buang cache sebuah ULP (atau semua) — panggil saat sesi WA berubah. */
+export function resetCacheSesi(ulpId?: string): void {
+  if (ulpId) cacheSesi.delete(ulpId)
+  else cacheSesi.clear()
+}
+
 export async function getOpenSessionForUlp(ulpId: string): Promise<string | null> {
   // Offline: pura-pura ada sesi terbuka supaya alur kirim tetap berjalan sampai
   // gatewaySend(), yang akan mencetak pesannya ke terminal.
   if (waOffline()) return 'offline'
+
+  const tersimpan = cacheSesi.get(ulpId)
+  if (tersimpan && tersimpan.kedaluwarsa > Date.now()) return tersimpan.sessionId
 
   const admin = createAdminClient()
   const { data: userUlps } = await admin.from('user_ulp').select('user_id').eq('ulp_id', ulpId)
   const wanted = new Set((userUlps ?? []).map((u) => sessionIdForUser(u.user_id as string)))
   const sessions = await gatewayListSessions()
   const open = sessions.find((s) => wanted.has(s.id) && s.status === 'open')
-  return open?.id ?? null
+  const sessionId = open?.id ?? null
+
+  cacheSesi.set(ulpId, { sessionId, kedaluwarsa: Date.now() + TTL_SESI_MS })
+  return sessionId
 }
 
 export interface GatewaySendPayload {

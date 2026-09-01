@@ -18,6 +18,7 @@ export interface AntrianData {
   myPosition?: number
   totalAntrian?: number
   queue?: QueueItem[]
+  queueDipotong?: boolean
 }
 
 const REFRESH_INTERVAL = 120
@@ -427,6 +428,11 @@ export function AntrinanClient({ token, initialData }: { token: string; initialD
             <p style={{ textAlign: 'center', fontSize: 13, color: '#94A3B8', padding: '12px 0' }}>Tidak ada antrian aktif</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {queue[0] && queue[0].position > 1 && (
+                <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#94A3B8', margin: 0 }}>
+                  ⋯ {queue[0].position - 1} antrian di atas
+                </p>
+              )}
               {queue.map(item => (
                 <div key={item.position} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
@@ -450,6 +456,15 @@ export function AntrinanClient({ token, initialData }: { token: string; initialD
                   </span>
                 </div>
               ))}
+              {(() => {
+                const terakhir = queue[queue.length - 1]
+                const sisa = terakhir ? (data.totalAntrian ?? 0) - terakhir.position : 0
+                return sisa > 0 ? (
+                  <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#94A3B8', margin: 0 }}>
+                    ⋯ {sisa} antrian di bawah
+                  </p>
+                ) : null
+              })()}
             </div>
           )}
         </div>

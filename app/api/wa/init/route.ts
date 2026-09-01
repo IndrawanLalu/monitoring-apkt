@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { destroyWaClient, isInitLocked, acquireInitLock } from '@/lib/wa/client'
 import { startWaSession } from '@/lib/wa/session'
-import { gatewayEnabled, gatewayStartSession, waOffline, GatewayUnreachableError } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewayStartSession, waOffline, GatewayUnreachableError, resetCacheSesi } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     try {
       await gatewayStartSession(userId)
+      resetCacheSesi()
     } catch (err) {
       // Jangan tulis status 'loading' kalau gateway-nya sendiri tak terjangkau —
       // itu meninggalkan baris menggantung yang tak akan pernah jadi 'connected'.

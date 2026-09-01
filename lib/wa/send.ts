@@ -69,7 +69,7 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
 
   const { data: laporan } = await admin
     .from('laporan')
-    .select('nomor_tiket, nama_pelanggan, nomor_pelanggan, lokasi, keterangan, ulp_id, regu(id, nama, nomor_hp), ulp(id, nama, wa_grup_id)')
+    .select('nomor_tiket, nama_pelanggan, nomor_pelanggan, lokasi, keterangan, created_at, ulp_id, regu(id, nama, nomor_hp), ulp(id, nama, wa_grup_id)')
     .eq('id', laporanId)
     .single()
 
@@ -84,16 +84,19 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
 
   // Nomor antrian = posisi laporan ini di antrian regu (belum selesai, urut created_at) —
   // sama persis dengan yang dilihat pelanggan di /antrian/[token].
+  //
+  // Dihitung lewat count, bukan dengan menarik seluruh baris lalu findIndex():
+  // versi lama memindahkan N baris dari database untuk mencari satu angka, dan
+  // itu terjadi pada SETIAP laporan baru.
   let nomorAntrian: number | null = null
-  if (regu?.id) {
-    const { data: antrian } = await admin
+  if (regu?.id && laporan.created_at) {
+    const { count } = await admin
       .from('laporan')
-      .select('id')
+      .select('*', { count: 'exact', head: true })
       .eq('regu_id', regu.id)
       .neq('status', 'selesai')
-      .order('created_at', { ascending: true })
-    const idx = (antrian ?? []).findIndex((a) => a.id === laporanId)
-    if (idx >= 0) nomorAntrian = idx + 1
+      .lte('created_at', laporan.created_at as string)
+    if (count && count > 0) nomorAntrian = count
   }
 
   // Nomor mention dioper ke builder, bukan ditambal lewat string replace —

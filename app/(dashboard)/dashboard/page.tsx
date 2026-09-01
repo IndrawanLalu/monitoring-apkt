@@ -50,7 +50,7 @@ export default async function DashboardPage() {
     // Tanpa filter ini, query menyeret sampai 1000 laporan lama tiap load.
     supabase
       .from('laporan')
-      .select('id, nomor_tiket, ulp_id, piket_id, regu_id, nama_pelanggan, nomor_pelanggan, lokasi, status, keterangan, magic_token, wa_message_id, created_at, updated_at, resolved_at')
+      .select('id, nomor_tiket, ulp_id, piket_id, regu_id, nama_pelanggan, nomor_pelanggan, lokasi, status, keterangan, magic_token, created_at')
       .in('ulp_id', ulpIds)
       .or(`status.neq.selesai,and(status.eq.selesai,resolved_at.gte.${today}T00:00:00+08:00)`)
       .order('created_at', { ascending: false }),

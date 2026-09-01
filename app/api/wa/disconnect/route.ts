@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { destroyWaClient } from '@/lib/wa/client'
-import { gatewayEnabled, gatewayDeleteSession } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewayDeleteSession, resetCacheSesi } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   // --- Jalur BARU: gateway (Baileys) ---
   if (gatewayEnabled()) {
     await gatewayDeleteSession(userId).catch(() => null)
+    resetCacheSesi()
     const adminGw = createAdminClient()
     await adminGw.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', userId)
     return NextResponse.json({ success: true })
