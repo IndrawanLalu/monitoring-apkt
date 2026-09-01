@@ -105,7 +105,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   // Trigger WA reply (fire and forget)
-  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch(() => null)
+  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch((e) => console.error("[WA] gagal kirim update status:", e))
 
   return NextResponse.json({ data: laporan, error: null })
 }

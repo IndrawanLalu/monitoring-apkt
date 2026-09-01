@@ -21,6 +21,41 @@ async function getWaClientForUlp(ulpId: string) {
   return null
 }
 
+/**
+ * Kirim teks ke grup WA sebuah ULP — dua jalur: gateway (Baileys) kalau aktif,
+ * fallback whatsapp-web.js in-process. Melempar Error dengan pesan yang layak
+ * ditampilkan ke pengguna kalau tidak ada sesi WA yang bisa dipakai.
+ *
+ * Dipakai bersama oleh /api/wa/kirim-regu, /api/wa/rekap-piket, dan
+ * lib/wa/rekap-gangguan.ts supaya cabang gateway tidak perlu ditulis ulang
+ * di tiap pemanggil — dua route pertama sempat tertinggal saat migrasi ke
+ * gateway dan diam-diam tidak pernah mengirim apa pun.
+ */
+export async function kirimTeksKeGrupUlp(
+  ulpId: string,
+  waGrupId: string,
+  text: string,
+  mentions?: string[],
+): Promise<void> {
+  if (gatewayEnabled()) {
+    const sessionId = await getOpenSessionForUlp(ulpId)
+    if (!sessionId) {
+      throw new Error('Tidak ada sesi WhatsApp yang terhubung di gateway untuk ULP ini. Hubungkan WA dulu di Settings.')
+    }
+    await gatewaySend(sessionId, { to: waGrupId, text, mentions })
+    return
+  }
+
+  const client = await getWaClientForUlp(ulpId)
+  if (!client) throw new Error('WhatsApp belum terhubung.')
+  await client.sendMessage(waGrupId, text)
+}
+
+/** Jam WITA (UTC+8) saat ini — jangan pakai getHours() yang ikut timezone mesin. */
+export function jamWita(now: Date = new Date()): number {
+  return new Date(now.getTime() + 8 * 60 * 60 * 1000).getUTCHours()
+}
+
 function formatWaNumber(phone: string | null | undefined): string | null {
   if (!phone) return null
   const clean = phone.replace(/\D/g, '')
@@ -34,7 +69,7 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
 
   const { data: laporan } = await admin
     .from('laporan')
-    .select('nomor_tiket, nama_pelanggan, nomor_pelanggan, lokasi, keterangan, magic_token, ulp_id, regu(id, nama, nomor_hp), ulp(id, nama, wa_grup_id)')
+    .select('nomor_tiket, nama_pelanggan, nomor_pelanggan, lokasi, keterangan, ulp_id, regu(id, nama, nomor_hp), ulp(id, nama, wa_grup_id)')
     .eq('id', laporanId)
     .single()
 
@@ -44,8 +79,6 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
   if (!ulp?.wa_grup_id) return
 
   const regu = normJoin(laporan.regu as unknown as { id: string; nama: string; nomor_hp?: string | null } | null)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
-  const magicUrl = `${appUrl}/magic/${laporan.magic_token}`
 
   const waNum = formatWaNumber(regu?.nomor_hp)
 
@@ -63,11 +96,9 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
     if (idx >= 0) nomorAntrian = idx + 1
   }
 
-  // Sertakan tag/mention ke dalam pesan
-  let pesan = buildPesanLaporanBaru({ ...laporan, regu }, magicUrl, nomorAntrian)
-  if (waNum) {
-    pesan = pesan.replace(`Regu      : ${regu?.nama}`, `Regu      : *${regu?.nama}* (@${waNum})`)
-  }
+  // Nomor mention dioper ke builder, bukan ditambal lewat string replace —
+  // replace lama diam-diam gagal begitu format pesannya berubah.
+  const pesan = buildPesanLaporanBaru({ ...laporan, regu }, nomorAntrian, waNum)
 
   // --- Jalur BARU: gateway (Baileys) ---
   if (gatewayEnabled()) {

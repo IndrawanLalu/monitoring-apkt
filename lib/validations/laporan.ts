@@ -36,17 +36,6 @@ export const updateStatusSchema = z.object({
   keterangan: z.string().max(500).nullable().optional(),
 })
 
-export const magicUpdateSchema = z.object({
-  token: z.string().min(1),
-  status: z.enum([
-    STATUS_LAPORAN.DITANGANI,
-    STATUS_LAPORAN.NYALA_SEMENTARA,
-    STATUS_LAPORAN.SELESAI,
-  ]),
-  keterangan: z.string().max(500).nullable().optional(),
-})
-
 export type CreateLaporanInput = z.infer<typeof createLaporanSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
-export type MagicUpdateInput = z.infer<typeof magicUpdateSchema>
 export type CcCallbackLaporanInput = z.infer<typeof ccCallbackLaporanSchema>

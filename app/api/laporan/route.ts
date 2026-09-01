@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   })
 
   // Trigger WA notification (fire and forget)
-  kirimLaporanBaru(laporan.id).catch(() => null)
+  kirimLaporanBaru(laporan.id).catch((e) => console.error("[WA] gagal kirim laporan baru:", e))
 
   return NextResponse.json({ data: laporan, error: null }, { status: 201 })
 }

@@ -16,7 +16,7 @@ function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): bool
 
 export default async function DashboardPage() {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   // Tanggal & jam WITA (server berjalan di UTC, WITA = UTC+8)
   const nowUtc = new Date()

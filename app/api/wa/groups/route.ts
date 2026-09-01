@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getWaClient } from '@/lib/wa/client'
-import { gatewayEnabled, gatewayListGroups } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewayListGroups, waOffline, GatewayUnreachableError } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -13,11 +13,19 @@ export async function POST(req: NextRequest) {
 
   // --- Jalur BARU: gateway (Baileys) ---
   if (gatewayEnabled()) {
+    if (waOffline()) {
+      return NextResponse.json({
+        error: 'Mode WA_OFFLINE aktif. Daftar grup hanya bisa diambil dari gateway yang berjalan di VPS — set WA_OFFLINE=false dan buka SSH tunnel ke VPS kalau memang perlu memilih grup dari lokal.',
+      }, { status: 503 })
+    }
     try {
       const groups = await gatewayListGroups(userId)
       return NextResponse.json({ data: groups })
     } catch (e) {
-      return NextResponse.json({ error: (e as Error).message }, { status: 503 })
+      const pesan = e instanceof GatewayUnreachableError
+        ? `${e.message}. Gateway berjalan di VPS — dari laptop lokal perlu SSH tunnel dulu.`
+        : (e as Error).message
+      return NextResponse.json({ error: pesan }, { status: 503 })
     }
   }
 

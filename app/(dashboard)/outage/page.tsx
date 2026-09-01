@@ -11,7 +11,7 @@ export default async function OutagePage({
   searchParams: Promise<{ year?: string; month?: string; ulp_id?: string }>
 }) {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   const sp = await searchParams
   const now = new Date(Date.now() + 8 * 60 * 60 * 1000)

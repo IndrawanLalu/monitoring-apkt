@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   const admin = createAdminClient()
   const ulpIds = profile.ulps.map((u) => u.id)

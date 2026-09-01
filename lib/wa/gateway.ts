@@ -4,7 +4,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // APKT = SATU akun/tenant di gateway (1 API key). Tiap user APKT = 1 sesi gateway
 // dengan id `apkt-<userId>`. Lihat DESIGN.md gateway.
 
-const BASE = process.env.WA_GATEWAY_URL // mis. http://127.0.0.1:3001
+// mis. https://gateway.commandcenter.my.id atau http://127.0.0.1:3001.
+// Garis miring di akhir dibuang: gwFetch menyambung `${BASE}${path}` dan `path`
+// sudah diawali '/', jadi ".../" akan menghasilkan "//sessions".
+const BASE = process.env.WA_GATEWAY_URL?.replace(/\/+$/, '')
 const KEY = process.env.WA_GATEWAY_KEY // API key tenant "monitoring-apkt"
 
 /**
@@ -13,6 +16,25 @@ const KEY = process.env.WA_GATEWAY_KEY // API key tenant "monitoring-apkt"
  */
 export function gatewayEnabled(): boolean {
   return process.env.WA_USE_GATEWAY === 'true' && !!BASE && !!KEY
+}
+
+/**
+ * Mode pengembangan lokal: gateway WA tidak dihubungi sama sekali.
+ * Pesan yang mestinya dikirim dicetak ke terminal, status dikembalikan stub,
+ * dan tabel `wa_session` TIDAK disentuh — supaya dev lokal yang memakai
+ * Supabase production tidak mengacaukan status koneksi WA yang sebenarnya.
+ * Aktifkan dengan WA_OFFLINE=true di .env.local (jangan pernah di VPS).
+ */
+export function waOffline(): boolean {
+  return process.env.WA_OFFLINE === 'true'
+}
+
+/** Gateway tak terjangkau (mati/timeout/jaringan), dibedakan dari "sesi tidak ada". */
+export class GatewayUnreachableError extends Error {
+  constructor(cause: string) {
+    super(`wa-gateway tidak terjangkau di ${BASE}: ${cause}`)
+    this.name = 'GatewayUnreachableError'
+  }
 }
 
 /** Konvensi: satu sesi gateway per user APKT. */
@@ -57,12 +79,28 @@ export function mapGatewayToApkt(s: GatewaySession | null): ApktWaState {
 }
 
 async function gwFetch(path: string, init?: RequestInit) {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', 'X-Api-Key': KEY as string, ...(init?.headers || {}) },
-  })
+  if (waOffline()) {
+    throw new GatewayUnreachableError('WA_OFFLINE=true — gateway sengaja tidak dihubungi')
+  }
+
+  let res: Response
+  try {
+    // Tanpa timeout, gateway yang hang menahan request Next.js sampai tak terhingga.
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      signal: AbortSignal.timeout(8000),
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': KEY as string, ...(init?.headers || {}) },
+    })
+  } catch (err) {
+    // Gagal di level jaringan/timeout — gateway mati, bukan jawaban "sesi tidak ada".
+    throw new GatewayUnreachableError(err instanceof Error ? err.message : String(err))
+  }
+
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || `gateway ${res.status}`)
+  if (!res.ok) {
+    if (res.status >= 500) throw new GatewayUnreachableError(`HTTP ${res.status}`)
+    throw new Error(data.error || `gateway ${res.status}`)
+  }
   return data
 }
 
@@ -117,6 +155,10 @@ export async function gatewayListGroups(userId: string): Promise<{ id: string; n
  * Pengganti getWaClientForUlp() versi whatsapp-web.js.
  */
 export async function getOpenSessionForUlp(ulpId: string): Promise<string | null> {
+  // Offline: pura-pura ada sesi terbuka supaya alur kirim tetap berjalan sampai
+  // gatewaySend(), yang akan mencetak pesannya ke terminal.
+  if (waOffline()) return 'offline'
+
   const admin = createAdminClient()
   const { data: userUlps } = await admin.from('user_ulp').select('user_id').eq('ulp_id', ulpId)
   const wanted = new Set((userUlps ?? []).map((u) => sessionIdForUser(u.user_id as string)))
@@ -139,6 +181,22 @@ export async function gatewaySend(
   sessionId: string,
   payload: GatewaySendPayload,
 ): Promise<{ id?: string }> {
+  if (waOffline()) {
+    const garis = '─'.repeat(52)
+    console.log(
+      `\n┌─ WA OFFLINE — tidak dikirim ${garis}\n` +
+        `│ tujuan : ${payload.to}\n` +
+        (payload.mentions?.length ? `│ mention: ${payload.mentions.join(', ')}\n` : '') +
+        `├${garis}──────────────────────────────\n` +
+        (payload.text ?? payload.caption ?? '(tanpa teks)')
+          .split('\n')
+          .map((l) => `│ ${l}`)
+          .join('\n') +
+        `\n└${garis}──────────────────────────────\n`,
+    )
+    return { id: `offline-${Date.now()}` }
+  }
+
   const d = await gwFetch(`/sessions/${sessionId}/send`, {
     method: 'POST',
     body: JSON.stringify(payload),

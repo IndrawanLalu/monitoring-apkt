@@ -7,9 +7,8 @@ export async function proxy(request: NextRequest) {
 
   // Rute publik (tanpa auth). Dicek DULUAN agar tidak memanggil
   // supabase.auth.getUser() — 1 round-trip jaringan (~250ms) per request —
-  // untuk halaman yang memang tidak butuh sesi (antrian pelanggan, rekap, magic).
+  // untuk halaman yang memang tidak butuh sesi (antrian pelanggan, rekap).
   const isPublicRoute =
-    pathname.startsWith("/magic") ||
     pathname.startsWith("/antrian") ||
     pathname.startsWith("/rekap-laporan") ||
     pathname.startsWith("/rekap-survey");
@@ -54,7 +53,11 @@ export async function proxy(request: NextRequest) {
 
   // Auth routes redirect to dashboard if already logged in
   if (pathname.startsWith("/login")) {
-    if (user) {
+    // Pemutus loop: kalau /dashboard memulangkan user ke sini dengan ?err=,
+    // JANGAN pantulkan balik ke /dashboard — sesi memang valid, tapi profilnya
+    // bermasalah, jadi memantulkan hanya menghasilkan redirect tak berujung.
+    const adaErr = request.nextUrl.searchParams.has("err");
+    if (user && !adaErr) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return supabaseResponse;

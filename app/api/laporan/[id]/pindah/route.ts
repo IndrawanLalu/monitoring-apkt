@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // WA notif ke grup ULP baru jika pindah ULP
   if (pindahUlp) {
-    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch(() => null)
+    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch((e) => console.error("[WA] gagal kirim notif pindah ULP:", e))
   }
 
   return NextResponse.json({ data: updated, error: null })
