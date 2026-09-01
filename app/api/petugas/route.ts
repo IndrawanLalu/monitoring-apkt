@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -11,13 +11,17 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const body = await req.json()
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+
+  const izin = await requireUlp(parsed.data.ulp_id)
+  if (izin.response) return izin.response
+
+  // Cegah pasangan silang: petugas ULP A ditempel ke regu ULP B.
+  if (parsed.data.regu_id && !(await reguMilikUlp(parsed.data.regu_id, parsed.data.ulp_id))) {
+    return NextResponse.json({ error: 'Regu tidak ada di ULP tersebut' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -26,7 +30,10 @@ export async function POST(req: NextRequest) {
     .select('id, ulp_id, regu_id, nama, nomor_hp, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[petugas POST]', error)
+    return NextResponse.json({ error: 'Gagal menambah petugas' }, { status: 500 })
+  }
 
   return NextResponse.json({ data }, { status: 201 })
 }

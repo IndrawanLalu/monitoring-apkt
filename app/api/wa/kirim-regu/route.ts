@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { kirimTeksKeGrupUlp, jamWita } from '@/lib/wa/send'
 import { buildPesanLaporanRegu } from '@/lib/wa/messages'
 import { SHIFT_JAM } from '@/constants'
 import type { ShiftType } from '@/types'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { regu_id, ulp_id, piket_id } = await req.json()
   if (!regu_id || !ulp_id) return NextResponse.json({ error: 'regu_id dan ulp_id diperlukan' }, { status: 400 })
+
+  // Tanpa ini, siapa pun yang login bisa memicu kiriman WA ke grup ULP mana pun.
+  const izin = await requireUlp(ulp_id)
+  if (izin.response) return izin.response
+  if (!(await reguMilikUlp(regu_id, ulp_id))) {
+    return NextResponse.json({ error: 'Regu tidak ada di ULP tersebut' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 

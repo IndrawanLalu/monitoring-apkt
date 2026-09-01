@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { requireUlp } from '@/lib/otorisasi'
 import { kirimTeksKeGrupUlp, jamWita } from '@/lib/wa/send'
 import { cariPiketAktif } from '@/lib/piket'
 import { buildPesanRekapPiket } from '@/lib/wa/messages'
@@ -8,12 +8,11 @@ import { SHIFT_JAM } from '@/constants'
 import type { ShiftType } from '@/types'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { ulp_id, piket_id } = await req.json()
   if (!ulp_id) return NextResponse.json({ error: 'ulp_id diperlukan' }, { status: 400 })
+
+  const izin = await requireUlp(ulp_id)
+  if (izin.response) return izin.response
 
   const admin = createAdminClient()
 
