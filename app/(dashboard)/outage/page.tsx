@@ -176,7 +176,7 @@ export default async function OutagePage({
     selectedUlpId,
     totalSelesai: rekap.kpi.totalSelesai,
     petugasSelesaiList: (rekap.petugasSelesai ?? []).map(p => ({
-      nama: p.nama, ulpNama: p.ulpNama, count: p.jumlah,
+      nama: p.nama, ulpNama: p.ulpNama, count: p.jumlah, menitRata: p.menitRata,
     })),
     petugasPuasList: (rekap.petugasPuas ?? []).map(p => ({
       nama: p.nama, ulpNama: p.ulpNama,

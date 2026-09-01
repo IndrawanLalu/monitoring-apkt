@@ -91,7 +91,7 @@ export interface OutageData {
   ulps: { id: string; nama: string }[]
   selectedUlpId: string | null
   totalSelesai: number
-  petugasSelesaiList: { nama: string; ulpNama: string; count: number }[]
+  petugasSelesaiList: { nama: string; ulpNama: string; count: number; menitRata: number | null }[]
   petugasPuasList: { nama: string; ulpNama: string; sangat_puas: number; puas: number; biasa: number; tidak_puas: number; sangat_tidak_puas: number; total: number }[]
   surveyList: SurveyItem[]
   calendarDays: { tanggal: string; petugas: { nama: string; count: number }[]; total: number }[]
@@ -124,6 +124,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Menit → "6j 24m" / "38m" / "3h 2j". */
+function durasi(menit: number | null): string {
+  if (menit == null) return '—'
+  if (menit < 60) return `${Math.round(menit)}m`
+  const j = Math.floor(menit / 60)
+  if (j >= 24) return `${Math.floor(j / 24)}h ${j % 24}j`
+  const m = Math.round(menit % 60)
+  return m === 0 ? `${j}j` : `${j}j ${m}m`
+}
+
 function Badge({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span style={{
@@ -136,7 +146,7 @@ function Badge({ color, children }: { color: string; children: React.ReactNode }
   )
 }
 
-type Tab = 'ringkasan' | 'rating' | 'selesai' | 'survey' | 'kalender'
+type Tab = 'ringkasan' | 'rating' | 'selesai' | 'survey' | 'kepatuhan' | 'kalender'
 
 export function OutageClient({ data }: { data: OutageData; profileRole: string }) {
   const router = useRouter()
@@ -183,6 +193,7 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
     { key: 'rating',   label: '⭐ Rating Puas' },
     { key: 'selesai',  label: '✅ Kinerja Petugas' },
     { key: 'survey',   label: '📋 Daftar Survey' },
+    { key: 'kepatuhan', label: '🛡 Kepatuhan' },
     { key: 'kalender', label: '📅 Kalender' },
   ]
 
@@ -252,11 +263,12 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
 
-        {/* ─── TAB: Rating Puas ──────────────────────────────────── */}
+        {/* ─── TAB: Ringkasan ────────────────────────────────────── */}
         {tab === 'ringkasan' && (
           <PanelRingkasan rekap={data.rekap} sebelum={data.rekapSebelum} />
         )}
 
+        {/* ─── TAB: Rating Puas ──────────────────────────────────── */}
         {tab === 'rating' && (
           <Card>
             <SectionTitle>⭐ Rating Kepuasan per Petugas</SectionTitle>
@@ -327,7 +339,12 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{p.ulpNama}</span>
                           </div>
-                          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--accent)' }}>{p.count}</span>
+                          <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} title="Durasi penanganan rata-rata">
+                              ⏱ {durasi(p.menitRata)}
+                            </span>
+                            <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--accent)' }}>{p.count}</span>
+                          </span>
                         </div>
                         <div style={{ height: 6, borderRadius: 4, backgroundColor: 'var(--border)', overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${PLN}, #0EA5E9)`, borderRadius: 4, transition: 'width 0.6s ease' }} />
@@ -354,7 +371,12 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{i + 1}. {p.nama}</p>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>{p.ulpNama}</p>
                       </div>
-                      <span style={{ fontSize: 18, fontWeight: 900, color: '#DC2626' }}>{p.count}</span>
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} title="Durasi penanganan rata-rata">
+                          ⏱ {durasi(p.menitRata)}
+                        </span>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: '#DC2626' }}>{p.count}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -399,6 +421,86 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
             )}
           </Card>
         )}
+
+        {/* ─── TAB: Kepatuhan ────────────────────────────────────── */}
+        {tab === 'kepatuhan' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Card>
+              <SectionTitle>🛡 Insiden yang Perlu Ditindaklanjuti</SectionTitle>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.55 }}>
+                Laporan pelanggan yang menyebutkan permintaan biaya tambahan, permintaan tips, atau
+                hal tidak menyenangkan. Diambil dari {data.rekap.kepatuhan.totalSurvey} survey pada periode ini.
+              </p>
+
+              {data.rekap.insiden.length === 0 ? (
+                <div style={{
+                  textAlign: 'center', padding: '28px 16px', borderRadius: 10,
+                  backgroundColor: 'rgba(29,185,84,0.08)', border: '1.5px solid rgba(29,185,84,0.25)',
+                }}>
+                  <p style={{ fontSize: 26, margin: 0 }}>✅</p>
+                  <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)', margin: '8px 0 0' }}>
+                    Tidak ada insiden dilaporkan
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                    {data.rekap.kepatuhan.totalSurvey === 0
+                      ? 'Belum ada survey masuk pada periode ini, jadi belum ada yang bisa dinilai.'
+                      : 'Tidak ada pelanggan yang melaporkan pungli, permintaan tips, maupun hal tidak menyenangkan.'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {data.rekap.insiden.map((x, i) => (
+                    <div key={`${x.nomorTiket}-${i}`} style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      border: '1.5px solid rgba(228,0,43,0.3)',
+                      backgroundColor: 'rgba(228,0,43,0.05)',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', margin: 0 }}>#{x.nomorTiket}</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, fontWeight: 600 }}>
+                          {new Date(x.submittedAt).toLocaleDateString('id-ID', {
+                            day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Makassar',
+                          })}
+                        </p>
+                      </div>
+
+                      {/* Jenis insiden selalu berlabel teks, bukan warna saja */}
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {x.pungli && <Badge color="#B91C1C">⚠ Pungli</Badge>}
+                        {x.tips && <Badge color="#C2410C">⚠ Diminta tips</Badge>}
+                        {x.tidakSenang && <Badge color="#A16207">⚠ Hal tidak menyenangkan</Badge>}
+                      </div>
+
+                      <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                        {x.namaPelanggan}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '2px 0 0', lineHeight: 1.5 }}>
+                        {x.alamat}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Petugas: </span>
+                        <b style={{ color: 'var(--text-primary)' }}>
+                          {x.petugas.length > 0 ? x.petugas.join(', ') : '—'}
+                        </b>
+                      </p>
+
+                      {x.pesanSaran && (
+                        <p style={{
+                          fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0',
+                          padding: '8px 10px', borderRadius: 8, backgroundColor: 'var(--bg-surface)',
+                          border: '1px solid var(--border)', fontStyle: 'italic', lineHeight: 1.55,
+                        }}>
+                          “{x.pesanSaran}”
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
 
         {/* ─── TAB: Kalender ─────────────────────────────────────── */}
         {tab === 'kalender' && (
