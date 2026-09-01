@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-import { STATUS_LABEL, STATUS_EMOJI, STATUS_COLOR } from '@/constants'
-import type { StatusLaporan } from '@/constants'
 
 interface QueueItem { position: number; isOwn: boolean; status: string }
 
@@ -25,6 +23,26 @@ export interface AntrianData {
 const REFRESH_INTERVAL = 120
 const PLN_BLUE = '#003B8E'
 
+// ─── Status versi pelanggan ──────────────────────────────────
+// Pelanggan hanya perlu tahu 3 keadaan. Lima status internal dipetakan ke situ,
+// sejalan dengan pengelompokan di dashboard & rekap:
+//   Dalam Antrian   = lapor + penugasan_regu + nyala_sementara
+//   Sedang Ditangani = ditangani
+//   Selesai          = selesai
+// Istilah internal seperti "Penugasan Regu" atau "Nyala Sementara" tidak
+// bermakna bagi pelanggan dan justru menimbulkan pertanyaan.
+const STATUS_PELANGGAN = {
+  antri:     { label: 'Dalam Antrian',    emoji: '🕐', bg: '#F5A623', text: '#FFFFFF' },
+  ditangani: { label: 'Sedang Ditangani', emoji: '🔧', bg: '#0070C0', text: '#FFFFFF' },
+  selesai:   { label: 'Selesai',          emoji: '✅', bg: '#1DB954', text: '#FFFFFF' },
+} as const
+
+function statusPelanggan(status: string) {
+  if (status === 'selesai') return STATUS_PELANGGAN.selesai
+  if (status === 'ditangani') return STATUS_PELANGGAN.ditangani
+  return STATUS_PELANGGAN.antri
+}
+
 // ─── Survey Form ─────────────────────────────────────────────
 
 const KONDISI_OPTIONS = [
@@ -33,17 +51,27 @@ const KONDISI_OPTIONS = [
   { value: 'padam_sekarang', label: 'Listrik masih padam' },
 ]
 
+// Urutan menurun: yang terbaik di atas.
 const SKALA_OPTIONS = [
-  { value: 'sangat_buruk', label: '1 - Sangat Buruk' },
-  { value: 'buruk', label: '2 - Buruk' },
-  { value: 'cukup', label: '3 - Cukup' },
-  { value: 'baik', label: '4 - Baik' },
   { value: 'sangat_baik', label: '5 - Sangat Baik' },
+  { value: 'baik', label: '4 - Baik' },
+  { value: 'cukup', label: '3 - Cukup' },
+  { value: 'buruk', label: '2 - Buruk' },
+  { value: 'sangat_buruk', label: '1 - Sangat Buruk' },
 ]
 
-const YA_TIDAK = [
+// Untuk pertanyaan tentang hal POSITIF (3S, identitas, APD) — jawaban baik = "Ada".
+const ADA_DULU = [
   { value: 'ada', label: 'Ada' },
   { value: 'tidak_ada', label: 'Tidak Ada' },
+]
+
+// Untuk pertanyaan tentang hal NEGATIF (pungli, tips, hal tidak menyenangkan) —
+// jawaban baik = "Tidak Ada", jadi ditaruh lebih dulu. Konsisten dengan ADA_DULU:
+// pilihan yang diharapkan selalu berada di posisi pertama.
+const TIDAK_ADA_DULU = [
+  { value: 'tidak_ada', label: 'Tidak Ada' },
+  { value: 'ada', label: 'Ada' },
 ]
 
 const KEPUASAN = [
@@ -58,8 +86,11 @@ const s: Record<string, React.CSSProperties> = {
   card: { background: '#fff', borderRadius: 14, padding: '16px', marginBottom: 12, boxShadow: '0 2px 12px rgba(0,59,142,0.08)' },
   label: { display: 'block', fontSize: 13, fontWeight: 700, color: '#1E293B', marginBottom: 8 },
   radio: { display: 'flex', flexDirection: 'column', gap: 8 },
-  radioItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E2E8F0', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#334155', transition: 'all 0.15s' },
-  radioItemSelected: { borderColor: PLN_BLUE, backgroundColor: '#EFF6FF', color: PLN_BLUE, fontWeight: 700 },
+  // Lebar border dibuat sama (2px) di kedua keadaan supaya baris tidak bergeser saat dipilih.
+  radioItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 10, border: '2px solid #E2E8F0', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#334155', backgroundColor: '#fff', transition: 'all 0.15s' },
+  // Terpilih = blok biru penuh dengan teks putih. Sebelumnya hanya #EFF6FF (biru
+  // sangat pucat) yang di layar HP di bawah sinar matahari nyaris tak terbaca.
+  radioItemSelected: { borderColor: '#00337A', backgroundColor: PLN_BLUE, color: '#FFFFFF', fontWeight: 800, boxShadow: '0 2px 10px rgba(0,112,192,0.35)' },
   textarea: { width: '100%', minHeight: 80, borderRadius: 10, border: '1.5px solid #E2E8F0', padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', color: '#1E293B', backgroundColor: '#fff' },
   btn: { width: '100%', padding: '14px', borderRadius: 12, border: 'none', fontWeight: 800, fontSize: 15, cursor: 'pointer', transition: 'all 0.15s' },
   note: { fontSize: 10, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 2, display: 'block' },
@@ -70,12 +101,24 @@ function RadioGroup({ name, options, value, onChange }: {
 }) {
   return (
     <div style={s.radio}>
-      {options.map(o => (
-        <label key={o.value} style={{ ...s.radioItem, ...(value === o.value ? s.radioItemSelected : {}) }}>
-          <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} style={{ accentColor: PLN_BLUE, width: 16, height: 16, flexShrink: 0 }} />
-          {o.label}
-        </label>
-      ))}
+      {options.map(o => {
+        const dipilih = value === o.value
+        return (
+          <label key={o.value} style={{ ...s.radioItem, ...(dipilih ? s.radioItemSelected : {}) }}>
+            <input
+              type="radio"
+              name={name}
+              value={o.value}
+              checked={dipilih}
+              onChange={() => onChange(o.value)}
+              // Di atas latar biru, accent biru jadi tak kelihatan — putihkan.
+              style={{ accentColor: dipilih ? '#FFFFFF' : PLN_BLUE, width: 17, height: 17, flexShrink: 0 }}
+            />
+            <span style={{ flex: 1 }}>{o.label}</span>
+            {dipilih && <span aria-hidden="true" style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+          </label>
+        )
+      })}
     </div>
   )
 }
@@ -140,16 +183,16 @@ function SurveyForm({ token, nomor, nama, alamat, onDone }: {
 
       {/* Q4–9 Ya/Tidak */}
       {[
-        { key: 'ada_pungli', q: '4. Apakah petugas meminta biaya tambahan (Pungli)?' },
-        { key: 'ada_tips', q: '5. Apakah ada permintaan uang tips/sukarela dari petugas?' },
-        { key: 'ada_3s', q: '6. Apakah petugas bersikap Senyum, Sapa, dan Salam (3S)?' },
-        { key: 'ada_identitas', q: '7. Apakah petugas menunjukkan identitas diri (ID Card/seragam)?' },
-        { key: 'ada_apd', q: '8. Apakah petugas menggunakan Alat Pelindung Diri (APD/helm, sepatu)?' },
-        { key: 'ada_hal_tidak_senang', q: '9. Apakah mengalami hal tidak menyenangkan (merokok/masuk tanpa izin)?' },
-      ].map(({ key, q }) => (
+        { key: 'ada_pungli', q: '4. Apakah petugas meminta biaya tambahan (Pungli)?', opts: TIDAK_ADA_DULU },
+        { key: 'ada_tips', q: '5. Apakah ada permintaan uang tips/sukarela dari petugas?', opts: TIDAK_ADA_DULU },
+        { key: 'ada_3s', q: '6. Apakah petugas bersikap Senyum, Sapa, dan Salam (3S)?', opts: ADA_DULU },
+        { key: 'ada_identitas', q: '7. Apakah petugas menunjukkan identitas diri (ID Card/seragam)?', opts: ADA_DULU },
+        { key: 'ada_apd', q: '8. Apakah petugas menggunakan Alat Pelindung Diri (APD/helm, sepatu)?', opts: ADA_DULU },
+        { key: 'ada_hal_tidak_senang', q: '9. Apakah mengalami hal tidak menyenangkan (merokok/masuk tanpa izin)?', opts: TIDAK_ADA_DULU },
+      ].map(({ key, q, opts }) => (
         <div key={key} style={s.card}>
           <label style={s.label}>{q}</label>
-          <RadioGroup name={key} options={YA_TIDAK} value={form[key as keyof typeof form]} onChange={v => set(key, v)} />
+          <RadioGroup name={key} options={opts} value={form[key as keyof typeof form]} onChange={v => set(key, v)} />
         </div>
       ))}
 
@@ -157,17 +200,23 @@ function SurveyForm({ token, nomor, nama, alamat, onDone }: {
       <div style={s.card}>
         <label style={s.label}>10. Secara keseluruhan, bagaimana kepuasan Anda terhadap pelayanan PLN?</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-          {KEPUASAN.map(k => (
-            <button key={k.value} onClick={() => set('kepuasan_keseluruhan', k.value)} style={{
-              flex: '1 1 80px', padding: '10px 6px', borderRadius: 10, border: '1.5px solid',
-              borderColor: form.kepuasan_keseluruhan === k.value ? PLN_BLUE : '#E2E8F0',
-              backgroundColor: form.kepuasan_keseluruhan === k.value ? '#EFF6FF' : '#fff',
-              cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-            }}>
-              <span style={{ fontSize: 22 }}>{k.emoji}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: form.kepuasan_keseluruhan === k.value ? PLN_BLUE : '#64748B', textAlign: 'center' }}>{k.label}</span>
-            </button>
-          ))}
+          {KEPUASAN.map(k => {
+            const dipilih = form.kepuasan_keseluruhan === k.value
+            return (
+              <button key={k.value} type="button" onClick={() => set('kepuasan_keseluruhan', k.value)} style={{
+                flex: '1 1 80px', padding: '10px 6px', borderRadius: 10, border: '2px solid',
+                borderColor: dipilih ? '#00337A' : '#E2E8F0',
+                backgroundColor: dipilih ? PLN_BLUE : '#fff',
+                boxShadow: dipilih ? '0 2px 10px rgba(0,112,192,0.35)' : 'none',
+                transform: dipilih ? 'scale(1.04)' : 'none',
+                transition: 'all 0.15s',
+                cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              }}>
+                <span style={{ fontSize: 22 }}>{k.emoji}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, color: dipilih ? '#FFFFFF' : '#64748B', textAlign: 'center' }}>{k.label}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -356,15 +405,19 @@ export function AntrinanClient({ token, initialData }: { token: string; initialD
           <p style={{ fontSize: 13, color: '#64748B', margin: '0 0 16px' }}>
             dari <strong style={{ color: '#1E293B' }}>{data.totalAntrian ?? 0}</strong> antrian aktif
           </p>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700,
-            backgroundColor: STATUS_COLOR[data.myStatus as StatusLaporan]?.bg ?? '#FEF2F2',
-            color: STATUS_COLOR[data.myStatus as StatusLaporan]?.text ?? '#B91C1C',
-            border: `1.5px solid ${STATUS_COLOR[data.myStatus as StatusLaporan]?.text ?? '#FCA5A5'}33`,
-          }}>
-            {STATUS_EMOJI[data.myStatus as StatusLaporan]} {STATUS_LABEL[data.myStatus as StatusLaporan]}
-          </span>
+          {(() => {
+            const st = statusPelanggan(data.myStatus ?? '')
+            return (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                borderRadius: 20, padding: '6px 16px', fontSize: 13, fontWeight: 700,
+                backgroundColor: st.bg,
+                color: st.text,
+              }}>
+                {st.emoji} {st.label}
+              </span>
+            )
+          })()}
         </div>
 
         {/* Daftar antrian */}
@@ -389,10 +442,11 @@ export function AntrinanClient({ token, initialData }: { token: string; initialD
                   </span>
                   <span style={{
                     fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 10px',
-                    backgroundColor: STATUS_COLOR[item.status as StatusLaporan]?.bg ?? '#F3F4F6',
-                    color: STATUS_COLOR[item.status as StatusLaporan]?.text ?? '#374151',
+                    backgroundColor: statusPelanggan(item.status).bg,
+                    color: statusPelanggan(item.status).text,
+                    whiteSpace: 'nowrap',
                   }}>
-                    {STATUS_EMOJI[item.status as StatusLaporan]} {STATUS_LABEL[item.status as StatusLaporan]}
+                    {statusPelanggan(item.status).emoji} {statusPelanggan(item.status).label}
                   </span>
                 </div>
               ))}
