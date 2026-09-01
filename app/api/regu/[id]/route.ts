@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireBarisUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const patchSchema = z.object({
@@ -13,9 +13,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const izin = await requireBarisUlp('regu', id)
+  if (izin.response) return izin.response
 
   const body = await req.json()
   const parsed = patchSchema.safeParse(body)
@@ -29,7 +28,10 @@ export async function PATCH(
     .select('id, ulp_id, nama, nomor_hp, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[regu PATCH]', error)
+    return NextResponse.json({ error: 'Gagal menyimpan perubahan regu' }, { status: 500 })
+  }
 
   return NextResponse.json({ data })
 }
@@ -39,13 +41,15 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const izin = await requireBarisUlp('regu', id)
+  if (izin.response) return izin.response
 
   const admin = createAdminClient()
   const { error } = await admin.from('regu').delete().eq('id', id)
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[regu DELETE]', error)
+    return NextResponse.json({ error: 'Gagal menghapus regu. Pastikan tidak ada laporan atau petugas yang masih terkait.' }, { status: 409 })
+  }
 
   return NextResponse.json({ success: true })
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const createPiketSchema = z.object({
@@ -15,15 +15,14 @@ const createPiketSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ data: null, error: 'Unauthorized' }, { status: 401 })
-
   const body = await req.json()
   const parsed = createPiketSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ data: null, error: parsed.error.issues[0].message }, { status: 400 })
   }
+
+  const izin = await requireUlp(parsed.data.ulp_id)
+  if (izin.response) return izin.response
 
   const { petugas_assignments, ...piketData } = parsed.data
   const admin = createAdminClient()

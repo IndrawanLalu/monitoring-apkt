@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-import { getWaClient } from '@/lib/wa/client'
+import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
+import { kirimTeksKeGrupUlp, jamWita } from '@/lib/wa/send'
 import { buildPesanLaporanRegu } from '@/lib/wa/messages'
 import { SHIFT_JAM } from '@/constants'
 import type { ShiftType } from '@/types'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { regu_id, ulp_id, piket_id } = await req.json()
   if (!regu_id || !ulp_id) return NextResponse.json({ error: 'regu_id dan ulp_id diperlukan' }, { status: 400 })
+
+  // Tanpa ini, siapa pun yang login bisa memicu kiriman WA ke grup ULP mana pun.
+  const izin = await requireUlp(ulp_id)
+  if (izin.response) return izin.response
+  if (!(await reguMilikUlp(regu_id, ulp_id))) {
+    return NextResponse.json({ error: 'Regu tidak ada di ULP tersebut' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 
@@ -21,7 +24,7 @@ export async function POST(req: NextRequest) {
     admin.from('ulp').select('wa_grup_id').eq('id', ulp_id).single(),
     admin
       .from('laporan')
-      .select('nomor_tiket, nama_pelanggan, lokasi, status, keterangan')
+      .select('nomor_tiket, nama_pelanggan, lokasi, status, keterangan, created_at')
       .eq('regu_id', regu_id)
       .neq('status', 'selesai')
       .order('created_at', { ascending: true }),
@@ -45,16 +48,18 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date()
-  const jam = now.getHours()
+  const jam = jamWita(now)
   const shiftNama: ShiftType = jam >= 8 && jam < 16 ? 'pagi' : jam >= 16 ? 'sore' : 'malam'
   const shiftJam = SHIFT_JAM[shiftNama]
 
   const pesan = buildPesanLaporanRegu(regu, petugasList, laporanAktif ?? [], shiftNama, shiftJam, now)
 
-  const waClient = getWaClient(user.id)
-  if (!waClient) return NextResponse.json({ error: 'WhatsApp belum terhubung' }, { status: 503 })
-
-  await waClient.sendMessage(ulp.wa_grup_id, pesan)
+  try {
+    await kirimTeksKeGrupUlp(ulp_id, ulp.wa_grup_id, pesan)
+  } catch (e) {
+    console.error('[WA] gagal kirim laporan regu:', e)
+    return NextResponse.json({ error: (e as Error).message }, { status: 503 })
+  }
 
   return NextResponse.json({ success: true })
 }

@@ -11,7 +11,7 @@ export default async function LaporanPage({
   searchParams: Promise<{ tanggal?: string; shift_id?: string; regu_id?: string }>
 }) {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   const { tanggal: tanggalParam, shift_id: selectedShiftId, regu_id: selectedReguId } = await searchParams
 

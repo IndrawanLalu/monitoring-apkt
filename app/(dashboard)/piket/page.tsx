@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function PiketPage() {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   const ulpIds = profile.ulps.map(u => u.id)
   const supabase = await createClient()

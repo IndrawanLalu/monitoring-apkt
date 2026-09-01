@@ -31,7 +31,7 @@ function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): bool
 
 export default async function CallbackPage() {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
   if (!profile.activeUlp) redirect('/settings')
 
   const admin = createAdminClient()

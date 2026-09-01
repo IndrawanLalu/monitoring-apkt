@@ -3,6 +3,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { PiketGuard } from '@/components/layout/piket-guard'
+import { KonfirmasiProvider } from '@/components/ui/konfirmasi'
 
 export default async function DashboardLayout({
   children,
@@ -10,7 +11,7 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
 
   const supabase = await createClient()
   
@@ -37,12 +38,14 @@ export default async function DashboardLayout({
   })
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-base)' }}>
-      <PiketGuard shifts={activeShifts} />
-      <Navbar profile={profile} />
-      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {children}
-      </main>
-    </div>
+    <KonfirmasiProvider>
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', backgroundColor: 'var(--bg-base)' }}>
+        <PiketGuard shifts={activeShifts} />
+        <Navbar profile={profile} />
+        <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {children}
+        </main>
+      </div>
+    </KonfirmasiProvider>
   )
 }

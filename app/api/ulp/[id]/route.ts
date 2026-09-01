@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const patchSchema = z.object({
@@ -14,9 +14,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Tanpa ini, siapa pun yang login bisa mengubah wa_grup_id ULP mana pun —
+  // artinya membelokkan seluruh notifikasi gangguan ULP lain ke grup miliknya.
+  const izin = await requireUlp(id)
+  if (izin.response) return izin.response
 
   const body = await req.json()
   const parsed = patchSchema.safeParse(body)
@@ -30,7 +32,10 @@ export async function PATCH(
     .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[ulp PATCH]', error)
+    return NextResponse.json({ error: 'Gagal menyimpan perubahan ULP' }, { status: 500 })
+  }
 
   return NextResponse.json({ data })
 }

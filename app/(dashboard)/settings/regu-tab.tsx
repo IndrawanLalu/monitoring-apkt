@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import type { Regu } from "@/types";
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface Props {
   ulpId: string;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ReguTab({ ulpId, reguList, setReguList }: Props) {
+  const konfirmasi = useKonfirmasi()
   const [namaRegu, setNamaRegu] = useState("");
   const [nomorHpRegu, setNomorHpRegu] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,7 +62,12 @@ export function ReguTab({ ulpId, reguList, setReguList }: Props) {
   }
 
   async function handleHapus(id: string) {
-    if (!confirm("Hapus regu ini? Semua petugas di regu ini akan kehilangan regu.")) return;
+    const ok = await konfirmasi({
+      judul: "Hapus regu ini?",
+      pesan: "Semua petugas di regu ini akan kehilangan regunya.",
+      varian: "danger",
+    });
+    if (!ok) return;
     await fetch(`/api/regu/${id}`, { method: "DELETE" });
     setReguList((prev) => prev.filter((r) => r.id !== id));
   }

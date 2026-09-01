@@ -1,18 +1,42 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { loginSchema } from '@/lib/validations/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+const PESAN_TANPA_PROFIL =
+  'Akun ini sudah terdaftar untuk login, tapi profil penggunanya belum dibuat sehingga belum terhubung ke ULP mana pun. Hubungi admin, atau masuk dengan akun lain.'
+
+// useSearchParams butuh Suspense karena halaman ini di-prerender statis.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginView />
+    </Suspense>
+  )
+}
+
+function LoginView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Dipulangkan dari /dashboard karena sesi valid tapi baris `profiles` tidak ada.
+  const tanpaProfil = searchParams.get('err') === 'no-profile'
+  const notice = tanpaProfil ? PESAN_TANPA_PROFIL : null
+
+  // Sesi seperti itu tidak bisa dipakai apa-apa, jadi langsung dibersihkan —
+  // kalau dibiarkan, proxy akan memantulkan user ke /dashboard lagi tanpa henti.
+  useEffect(() => {
+    if (!tanpaProfil) return
+    createClient().auth.signOut().catch(() => null)
+  }, [tanpaProfil])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -137,6 +161,19 @@ export default function LoginPage() {
               autoComplete="current-password"
               required
             />
+
+            {notice && (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: 8,
+                backgroundColor: 'rgba(255,180,0,0.12)',
+                border: '1px solid rgba(255,180,0,0.35)',
+              }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, fontWeight: 500, lineHeight: 1.5 }}>
+                  ℹ {notice}
+                </p>
+              </div>
+            )}
 
             {error && (
               <div style={{

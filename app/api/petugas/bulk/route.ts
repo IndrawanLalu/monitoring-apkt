@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -10,19 +10,21 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const admin = createAdminClient()
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   const body = await req.json()
   const parsed = schema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
 
   const { ulp_id, regu_id, names } = parsed.data
+
+  const izin = await requireUlp(ulp_id)
+  if (izin.response) return izin.response
+  if (izin.profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  if (regu_id && !(await reguMilikUlp(regu_id, ulp_id))) {
+    return NextResponse.json({ error: 'Regu tidak ada di ULP tersebut' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
 
   const rows = names
     .map((n) => n.trim())

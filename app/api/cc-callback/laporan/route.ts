@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireUlp } from '@/lib/otorisasi'
 import { ccCallbackLaporanSchema } from '@/lib/validations/laporan'
 import { UPDATED_BY } from '@/constants'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ data: null, error: 'Unauthorized' }, { status: 401 })
-
   const body = await req.json()
   const parsed = ccCallbackLaporanSchema.safeParse(body)
   if (!parsed.success) {
@@ -19,18 +15,12 @@ export async function POST(req: NextRequest) {
   }
 
   const { ulp_id } = body as { ulp_id: string }
-  if (!ulp_id) return NextResponse.json({ data: null, error: 'ulp_id diperlukan' }, { status: 400 })
+
+  const izin = await requireUlp(ulp_id)
+  if (izin.response) return izin.response
 
   const admin = createAdminClient()
-
-  // Ambil profil user untuk mendapatkan nama_cc_callback
-  const { data: profile } = await admin
-    .from('profiles')
-    .select('nama')
-    .eq('id', user.id)
-    .single()
-
-  const ccName = profile?.nama ?? null
+  const ccName = izin.profile.nama ?? null
   const now = new Date().toISOString()
 
   // Cek apakah laporan dengan nomor_tiket tersebut sudah ada

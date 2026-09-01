@@ -167,12 +167,3 @@ export interface WaStatusEvent {
 
 /* ─── Magic Link ─── */
 
-export interface MagicLinkLaporan {
-  id: string
-  nomor_tiket: string
-  nama_pelanggan: string
-  lokasi: string
-  status: StatusLaporan
-  keterangan: string | null
-  regu: Pick<Regu, 'id' | 'nama'>
-}

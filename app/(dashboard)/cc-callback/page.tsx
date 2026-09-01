@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function CcCallbackPage() {
   const profile = await getProfile()
-  if (!profile) redirect('/login')
+  if (!profile) redirect('/login?err=no-profile')
   if (!profile.activeUlp) redirect('/settings')
 
   return (

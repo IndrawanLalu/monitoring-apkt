@@ -1,31 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildPesanRekapGangguan } from '@/lib/wa/messages'
-import { gatewayEnabled, getOpenSessionForUlp, gatewaySend } from '@/lib/wa/gateway'
-import { getWaClient } from '@/lib/wa/client'
+import { kirimTeksKeGrupUlp } from '@/lib/wa/send'
+import { cariPiketAktif } from '@/lib/piket'
 
-/**
- * Kirim teks ke grup WA sebuah ULP — dua jalur:
- * gateway (Baileys) jika aktif, fallback whatsapp-web.js in-process.
- * Mirror pola di lib/wa/send.ts.
- */
+/** Bungkus kirimTeksKeGrupUlp jadi boolean — scheduler tidak boleh berhenti karena 1 ULP gagal. */
 async function sendTextToUlpGroup(ulpId: string, waGrupId: string, text: string): Promise<boolean> {
-  if (gatewayEnabled()) {
-    const sessionId = await getOpenSessionForUlp(ulpId)
-    if (!sessionId) return false
-    await gatewaySend(sessionId, { to: waGrupId, text })
+  try {
+    await kirimTeksKeGrupUlp(ulpId, waGrupId, text)
     return true
+  } catch (e) {
+    console.error(`[WA] rekap gangguan ULP ${ulpId} gagal:`, e)
+    return false
   }
-
-  const admin = createAdminClient()
-  const { data: userUlps } = await admin.from('user_ulp').select('user_id').eq('ulp_id', ulpId)
-  for (const { user_id } of userUlps ?? []) {
-    const client = getWaClient(user_id as string)
-    if (client?.info) {
-      await client.sendMessage(waGrupId, text)
-      return true
-    }
-  }
-  return false
 }
 
 export interface RekapGangguanResult {
@@ -67,8 +53,37 @@ export async function kirimRekapGangguanUlp(
   ])
 
   const now = new Date()
-  const total = (laporan ?? []).length
-  const pesan = buildPesanRekapGangguan(ulp.nama, regus ?? [], (laporan ?? []) as never, now)
+  const belum = laporan ?? []
+  const total = belum.length
+
+  // Hitungan status untuk sesi piket berjalan.
+  // - Status terbuka: semua yang belum selesai saat ini (itulah yang sedang dipegang shift).
+  // - Selesai: HANYA yang diselesaikan piket ini, lewat resolved_piket_id.
+  //   `laporan.piket_id` tidak bisa dipakai — NULL untuk seluruh baris di database.
+  const piket = await cariPiketAktif(admin, ulpId, now)
+  let sesi: Parameters<typeof buildPesanRekapGangguan>[4] = null
+
+  if (piket) {
+    const { count: selesai } = await admin
+      .from('laporan')
+      .select('*', { count: 'exact', head: true })
+      .eq('resolved_piket_id', piket.id)
+
+    sesi = {
+      shiftNama: piket.nama,
+      jamMulai: piket.jamMulai.slice(0, 5),
+      jamSelesai: piket.jamSelesai.slice(0, 5),
+      hitungan: {
+        lapor: belum.filter((l) => l.status === 'lapor').length,
+        penugasan_regu: belum.filter((l) => l.status === 'penugasan_regu').length,
+        ditangani: belum.filter((l) => l.status === 'ditangani').length,
+        nyala_sementara: belum.filter((l) => l.status === 'nyala_sementara').length,
+        selesai: selesai ?? 0,
+      },
+    }
+  }
+
+  const pesan = buildPesanRekapGangguan(ulp.nama, regus ?? [], belum as never, now, sesi)
 
   if (opts.dryRun) {
     return { ulpId, nama: ulp.nama, ok: true, total, text: pesan }
@@ -105,9 +120,11 @@ export async function kirimRekapGangguanSemua(
 }
 
 // ─── Scheduler in-app (tanpa dependency) ──────────────────────────────────
-// Jalan tiap 3 jam pada jam bulat WIB: 00,03,06,09,12,15,18,21.
+// Jalan tiap 3 jam pada jam bulat WITA: 00,03,06,09,12,15,18,21.
 
-const TZ = 'Asia/Jakarta'
+// WITA — zona operasional. Sebelumnya 'Asia/Jakarta' (WIB) sehingga rekap
+// terkirim pukul 01,04,07,… WITA, meleset satu jam dari yang dimaksud.
+const TZ = 'Asia/Makassar'
 const SLOT_HOURS = [0, 3, 6, 9, 12, 15, 18, 21]
 let schedulerStarted = false
 

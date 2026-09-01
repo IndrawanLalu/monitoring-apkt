@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/ui/badge'
 import { useRealtimeLaporan } from '@/hooks/use-realtime-laporan'
 import { STATUS_LABEL, SHIFT_LABEL, SHIFT_JAM } from '@/constants'
 import type { Laporan, Regu, Petugas, Piket, ReguStats, ShiftType, StatusLaporan } from '@/types'
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface UlpInfo {
   id: string
@@ -36,6 +37,7 @@ interface Props {
 
 export function DashboardClient({ ulpDataList, today }: Props) {
   const router = useRouter()
+  const konfirmasi = useKonfirmasi()
 
   const [selectedUlpIdx, setSelectedUlpIdx] = useState(0)
   const selectedUlpIdxRef = useRef(0)
@@ -185,26 +187,72 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     setShowTambahLaporan(true)
   }
 
+  // Kiriman ke grup WA tidak bisa ditarik kembali, jadi selalu lewat konfirmasi.
+  // Dialog yang menjalankan fetch-nya: tombol terkunci selama proses (mencegah
+  // klik ganda mengirim dua kali) dan pesan galat dari server ditampilkan di
+  // tempat — sebelumnya respons diabaikan sepenuhnya, jadi kegagalan kirim
+  // sama sekali tidak terlihat oleh pengguna.
+  async function kirim(url: string, body: unknown) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}))
+      throw new Error(j.error ?? 'Gagal mengirim pesan WhatsApp.')
+    }
+  }
+
   async function handleKirimWa(reguId: string) {
     const ulpData = ulpDataList.find((d) => d.reguList.some((r) => r.id === reguId))
     if (!ulpData) return
-    setSendingWa(reguId)
-    await fetch('/api/wa/kirim-regu', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ regu_id: reguId, ulp_id: ulpData.ulp.id, piket_id: ulpData.piket?.id ?? null }),
+    const regu = ulpData.reguList.find((r) => r.id === reguId)
+    const aktif = (laporanMap[ulpData.ulp.id] ?? [])
+      .filter((l) => l.regu_id === reguId && l.status !== 'selesai').length
+
+    await konfirmasi({
+      judul: 'Kirim daftar laporan aktif ke grup WA?',
+      pesan: 'Pesan langsung terkirim ke grup dan tidak bisa ditarik kembali.',
+      rincian: [
+        { label: 'Regu', nilai: regu?.nama ?? '—' },
+        { label: 'ULP', nilai: ulpData.ulp.nama },
+        { label: 'Laporan aktif', nilai: `${aktif} laporan` },
+      ],
+      labelAksi: 'Kirim sekarang',
+      aksi: async () => {
+        setSendingWa(reguId)
+        try {
+          await kirim('/api/wa/kirim-regu', {
+            regu_id: reguId, ulp_id: ulpData.ulp.id, piket_id: ulpData.piket?.id ?? null,
+          })
+        } finally {
+          setSendingWa(null)
+        }
+      },
     })
-    setSendingWa(null)
   }
 
   async function handleRekap(ulpId: string, piketId: string) {
-    setSendingRekap(ulpId)
-    await fetch('/api/wa/rekap-piket', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ulp_id: ulpId, piket_id: piketId }),
+    const ulpData = ulpDataList.find((d) => d.ulp.id === ulpId)
+
+    await konfirmasi({
+      judul: 'Kirim rekap serah terima ke grup WA?',
+      pesan: 'Rekap berisi hitungan per regu dan daftar gangguan yang diserahterimakan ke shift berikutnya.',
+      rincian: [
+        { label: 'ULP', nilai: ulpData?.ulp.nama ?? '—' },
+        { label: 'Shift', nilai: ulpData?.piket?.shift_type?.nama ?? '—' },
+      ],
+      labelAksi: 'Kirim rekap',
+      aksi: async () => {
+        setSendingRekap(ulpId)
+        try {
+          await kirim('/api/wa/rekap-piket', { ulp_id: ulpId, piket_id: piketId })
+        } finally {
+          setSendingRekap(null)
+        }
+      },
     })
-    setSendingRekap(null)
   }
 
   const selectedData = ulpDataList[selectedUlpIdx] ?? ulpDataList[0]

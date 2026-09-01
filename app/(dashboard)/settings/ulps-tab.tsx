@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
+import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
 interface UlpItem {
   id: string
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function UlpsTab({ onToast }: Props) {
+  const konfirmasi = useKonfirmasi()
   const [ulps, setUlps] = useState<UlpItem[]>([])
   const [loading, setLoading] = useState(true)
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
@@ -97,7 +99,14 @@ export function UlpsTab({ onToast }: Props) {
   }
 
   async function handleDelete(ulp: UlpItem) {
-    if (!confirm(`Hapus ULP "${ulp.nama}" (${ulp.kode}) secara permanen?\n\nPastikan ULP tidak memiliki data Regu atau Laporan.`)) return
+    const ok = await konfirmasi({
+      judul: 'Hapus ULP secara permanen?',
+      pesan: 'Penghapusan akan ditolak kalau ULP ini masih punya regu atau laporan.',
+      rincian: [{ label: 'ULP', nilai: `${ulp.nama} (${ulp.kode})` }],
+      varian: 'danger',
+      labelAksi: 'Hapus ULP',
+    })
+    if (!ok) return
     try {
       const res = await fetch(`/api/admin/ulps/${ulp.id}`, { method: 'DELETE' })
       const json = await res.json()

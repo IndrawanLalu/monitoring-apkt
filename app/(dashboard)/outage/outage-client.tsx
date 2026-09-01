@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { PanelRingkasan } from './panel-ringkasan'
 
 const KEPUASAN_LABEL: Record<string, { label: string; emoji: string; color: string }> = {
   sangat_puas:       { label: 'Sangat Puas',       emoji: '😄', color: '#059669' },
@@ -45,16 +46,59 @@ export interface SurveyItem {
   adaApd: string; adaHalTidakSenang: string; pesanSaran: string | null
 }
 
+/** Bentuk balikan fungsi Postgres rekap_outage(). */
+export interface RekapOutage {
+  kpi: {
+    totalSelesai: number
+    totalMasuk: number
+    menitRata: number | null
+    menitTengah: number | null
+    persenDibawah3Jam: number | null
+    totalSurvey: number
+    indeksKepuasan: number | null
+    masihTerbuka: number
+  }
+  trenHarian: { tanggal: string; masuk: number; selesai: number }[]
+  sebaranDurasi: { label: string; jumlah: number }[]
+  perUlp: { ulpId: string; nama: string; selesai: number; menitRata: number | null }[]
+  jamSibuk: { hari: number; jam: number; jumlah: number }[]
+  petugasSelesai: { nama: string; ulpNama: string; jumlah: number; menitRata: number | null }[]
+  petugasPuas: {
+    nama: string; ulpNama: string
+    sangatPuas: number; puas: number; biasa: number; tidakPuas: number; sangatTidakPuas: number
+    total: number
+  }[]
+  kalender: { tanggal: string; total: number; petugas: { nama: string; jumlah: number }[] }[]
+  kepatuhan: {
+    totalSurvey: number
+    persen3s: number | null
+    persenIdentitas: number | null
+    persenApd: number | null
+    jumlahPungli: number
+    jumlahTips: number
+    jumlahTidakSenang: number
+  }
+  insiden: {
+    nomorTiket: string; namaPelanggan: string; alamat: string; submittedAt: string
+    pungli: boolean; tips: boolean; tidakSenang: boolean
+    pesanSaran: string | null; petugas: string[]
+  }[]
+}
+
 export interface OutageData {
   year: number
   month: number
   ulps: { id: string; nama: string }[]
   selectedUlpId: string | null
   totalSelesai: number
-  petugasSelesaiList: { nama: string; ulpNama: string; count: number }[]
+  petugasSelesaiList: { nama: string; ulpNama: string; count: number; menitRata: number | null }[]
   petugasPuasList: { nama: string; ulpNama: string; sangat_puas: number; puas: number; biasa: number; tidak_puas: number; sangat_tidak_puas: number; total: number }[]
   surveyList: SurveyItem[]
   calendarDays: { tanggal: string; petugas: { nama: string; count: number }[]; total: number }[]
+  /** Agregat mentah dari rekap_outage — dipakai lapis KPI & panel visual. */
+  rekap: RekapOutage
+  /** Periode pembanding (bulan/tahun sebelumnya) untuk delta KPI. */
+  rekapSebelum: RekapOutage | null
 }
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
@@ -80,6 +124,16 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Menit → "6j 24m" / "38m" / "3h 2j". */
+function durasi(menit: number | null): string {
+  if (menit == null) return '—'
+  if (menit < 60) return `${Math.round(menit)}m`
+  const j = Math.floor(menit / 60)
+  if (j >= 24) return `${Math.floor(j / 24)}h ${j % 24}j`
+  const m = Math.round(menit % 60)
+  return m === 0 ? `${j}j` : `${j}j ${m}m`
+}
+
 function Badge({ color, children }: { color: string; children: React.ReactNode }) {
   return (
     <span style={{
@@ -92,12 +146,12 @@ function Badge({ color, children }: { color: string; children: React.ReactNode }
   )
 }
 
-type Tab = 'rating' | 'selesai' | 'survey' | 'kalender'
+type Tab = 'ringkasan' | 'rating' | 'selesai' | 'survey' | 'kepatuhan' | 'kalender'
 
 export function OutageClient({ data }: { data: OutageData; profileRole: string }) {
   const router = useRouter()
   const pathname = usePathname()
-  const [tab, setTab] = useState<Tab>('rating')
+  const [tab, setTab] = useState<Tab>('ringkasan')
   const [detail, setDetail] = useState<SurveyItem | null>(null)
 
   const calendarMatrix = useMemo(() => {
@@ -123,6 +177,30 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
     }
   }, [data.calendarDays])
 
+  /**
+   * Daftar "tersedikit" hanya boleh berisi petugas yang memang bertugas penuh
+   * pada periode ini. Tanpa penyaringan, yang muncul adalah petugas yang baru
+   * masuk regu, sedang cuti, atau baru didaftarkan — mereka tampil paling
+   * bawah karena hitungannya 1–2, lalu ditandai merah di dashboard yang
+   * dilihat manajemen. Itu salah sasaran.
+   *
+   * Ambangnya relatif terhadap median, bukan angka tetap, karena volume tiap
+   * bulan sangat berbeda (Juni 3.801 laporan, Agustus 239).
+   */
+  const tersedikit = useMemo(() => {
+    const semua = data.petugasSelesaiList
+    if (semua.length < 4) return { ambang: 0, daftar: [] as typeof semua }
+
+    const urut = [...semua].map(p => p.count).sort((a, b) => a - b)
+    const median = urut[Math.floor(urut.length / 2)]
+    const ambang = Math.max(3, Math.round(median * 0.25))
+    const layak = semua.filter(p => p.count >= ambang)
+
+    // Kalau nyaris semua tersaring, daftarnya tidak lagi bermakna.
+    if (layak.length < 4) return { ambang, daftar: [] as typeof semua }
+    return { ambang, daftar: [...layak].reverse().slice(0, 5) }
+  }, [data.petugasSelesaiList])
+
   function navigate(params: Record<string, string | null>) {
     const sp = new URLSearchParams()
     const yr = params.year   ?? String(data.year)
@@ -135,9 +213,11 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
   }
 
   const TABS: { key: Tab; label: string }[] = [
+    { key: 'ringkasan', label: '📊 Ringkasan' },
     { key: 'rating',   label: '⭐ Rating Puas' },
     { key: 'selesai',  label: '✅ Kinerja Petugas' },
     { key: 'survey',   label: '📋 Daftar Survey' },
+    { key: 'kepatuhan', label: '🛡 Kepatuhan' },
     { key: 'kalender', label: '📅 Kalender' },
   ]
 
@@ -206,6 +286,11 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+
+        {/* ─── TAB: Ringkasan ────────────────────────────────────── */}
+        {tab === 'ringkasan' && (
+          <PanelRingkasan rekap={data.rekap} sebelum={data.rekapSebelum} />
+        )}
 
         {/* ─── TAB: Rating Puas ──────────────────────────────────── */}
         {tab === 'rating' && (
@@ -278,7 +363,12 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{p.ulpNama}</span>
                           </div>
-                          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--accent)' }}>{p.count}</span>
+                          <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} title="Durasi penanganan rata-rata">
+                              ⏱ {durasi(p.menitRata)}
+                            </span>
+                            <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--accent)' }}>{p.count}</span>
+                          </span>
                         </div>
                         <div style={{ height: 6, borderRadius: 4, backgroundColor: 'var(--border)', overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${PLN}, #0EA5E9)`, borderRadius: 4, transition: 'width 0.6s ease' }} />
@@ -290,22 +380,32 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
               )}
             </Card>
 
-            {data.petugasSelesaiList.length > 1 && (
+            {tersedikit.daftar.length > 0 && (
               <Card>
-                <SectionTitle>📉 Petugas Gangguan Selesai Tersedikit</SectionTitle>
+                <SectionTitle>📉 Gangguan Selesai Tersedikit</SectionTitle>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', margin: '-6px 0 12px', lineHeight: 1.5 }}>
+                  Hanya petugas dengan minimal {tersedikit.ambang} gangguan selesai pada periode ini.
+                  Yang di bawah itu dianggap belum bertugas penuh — cuti, baru masuk regu, atau
+                  baru didaftarkan — sehingga tidak dibandingkan.
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {[...data.petugasSelesaiList].reverse().slice(0, 5).map((p, i) => (
+                  {tersedikit.daftar.map((p, i) => (
                     <div key={`${p.nama}-${p.ulpNama}-bot`} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '10px 12px', borderRadius: 10,
-                      backgroundColor: 'rgba(220,38,38,0.06)',
-                      border: '1.5px solid rgba(220,38,38,0.25)',
+                      backgroundColor: 'var(--bg-surface-2)',
+                      border: '1.5px solid var(--border)',
                     }}>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{i + 1}. {p.nama}</p>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>{p.ulpNama}</p>
                       </div>
-                      <span style={{ fontSize: 18, fontWeight: 900, color: '#DC2626' }}>{p.count}</span>
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }} title="Durasi penanganan rata-rata">
+                          ⏱ {durasi(p.menitRata)}
+                        </span>
+                        <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-secondary)' }}>{p.count}</span>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -350,6 +450,86 @@ export function OutageClient({ data }: { data: OutageData; profileRole: string }
             )}
           </Card>
         )}
+
+        {/* ─── TAB: Kepatuhan ────────────────────────────────────── */}
+        {tab === 'kepatuhan' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Card>
+              <SectionTitle>🛡 Insiden yang Perlu Ditindaklanjuti</SectionTitle>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.55 }}>
+                Laporan pelanggan yang menyebutkan permintaan biaya tambahan, permintaan tips, atau
+                hal tidak menyenangkan. Diambil dari {data.rekap.kepatuhan.totalSurvey} survey pada periode ini.
+              </p>
+
+              {data.rekap.insiden.length === 0 ? (
+                <div style={{
+                  textAlign: 'center', padding: '28px 16px', borderRadius: 10,
+                  backgroundColor: 'rgba(29,185,84,0.08)', border: '1.5px solid rgba(29,185,84,0.25)',
+                }}>
+                  <p style={{ fontSize: 26, margin: 0 }}>✅</p>
+                  <p style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)', margin: '8px 0 0' }}>
+                    Tidak ada insiden dilaporkan
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                    {data.rekap.kepatuhan.totalSurvey === 0
+                      ? 'Belum ada survey masuk pada periode ini, jadi belum ada yang bisa dinilai.'
+                      : 'Tidak ada pelanggan yang melaporkan pungli, permintaan tips, maupun hal tidak menyenangkan.'}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {data.rekap.insiden.map((x, i) => (
+                    <div key={`${x.nomorTiket}-${i}`} style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      border: '1.5px solid rgba(228,0,43,0.3)',
+                      backgroundColor: 'rgba(228,0,43,0.05)',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', margin: 0 }}>#{x.nomorTiket}</p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, fontWeight: 600 }}>
+                          {new Date(x.submittedAt).toLocaleDateString('id-ID', {
+                            day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Makassar',
+                          })}
+                        </p>
+                      </div>
+
+                      {/* Jenis insiden selalu berlabel teks, bukan warna saja */}
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                        {x.pungli && <Badge color="#B91C1C">⚠ Pungli</Badge>}
+                        {x.tips && <Badge color="#C2410C">⚠ Diminta tips</Badge>}
+                        {x.tidakSenang && <Badge color="#A16207">⚠ Hal tidak menyenangkan</Badge>}
+                      </div>
+
+                      <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                        {x.namaPelanggan}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '2px 0 0', lineHeight: 1.5 }}>
+                        {x.alamat}
+                      </p>
+                      <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: '6px 0 0' }}>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Petugas: </span>
+                        <b style={{ color: 'var(--text-primary)' }}>
+                          {x.petugas.length > 0 ? x.petugas.join(', ') : '—'}
+                        </b>
+                      </p>
+
+                      {x.pesanSaran && (
+                        <p style={{
+                          fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0',
+                          padding: '8px 10px', borderRadius: 8, backgroundColor: 'var(--bg-surface)',
+                          border: '1px solid var(--border)', fontStyle: 'italic', lineHeight: 1.55,
+                        }}>
+                          “{x.pesanSaran}”
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
 
         {/* ─── TAB: Kalender ─────────────────────────────────────── */}
         {tab === 'kalender' && (

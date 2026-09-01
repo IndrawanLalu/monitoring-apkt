@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireLaporan } from '@/lib/otorisasi'
 import { updateStatusSchema } from '@/lib/validations/laporan'
 import { UPDATED_BY } from '@/constants'
 import { kirimUpdateStatus } from '@/lib/wa/send'
@@ -8,9 +8,8 @@ import { kirimUpdateStatus } from '@/lib/wa/send'
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ data: null, error: 'Unauthorized' }, { status: 401 })
+  const izin = await requireLaporan(id)
+  if (izin.response) return izin.response
 
   const body = await req.json()
   const parsed = updateStatusSchema.safeParse({ laporan_id: id, ...body })
@@ -19,14 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const admin = createAdminClient()
-
-  const { data: existing } = await admin
-    .from('laporan')
-    .select('id, status, keterangan, ulp_id, regu_id')
-    .eq('id', id)
-    .single()
-
-  if (!existing) return NextResponse.json({ data: null, error: 'Laporan tidak ditemukan' }, { status: 404 })
+  const existing = izin.data.laporan as {
+    id: string; status: string; keterangan: string | null; ulp_id: string; regu_id: string | null
+  }
 
   // Saat selesai: cari piket aktif + snapshot nama petugas regu
   let resolved_piket_id: string | null = null
@@ -94,7 +88,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select('*')
     .single()
 
-  if (error) return NextResponse.json({ data: null, error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[laporan status PATCH]', error)
+    return NextResponse.json({ data: null, error: 'Gagal mengubah status laporan' }, { status: 500 })
+  }
 
   await admin.from('riwayat_status').insert({
     laporan_id: id,
@@ -105,7 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   // Trigger WA reply (fire and forget)
-  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch(() => null)
+  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch((e) => console.error("[WA] gagal kirim update status:", e))
 
   return NextResponse.json({ data: laporan, error: null })
 }

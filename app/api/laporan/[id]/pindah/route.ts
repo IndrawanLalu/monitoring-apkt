@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireLaporan, requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { UPDATED_BY } from '@/constants'
 import { kirimUpdateStatus } from '@/lib/wa/send'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const body = await req.json()
   const { ulp_id, regu_id } = body as { ulp_id: string; regu_id: string }
 
@@ -17,16 +13,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'ulp_id dan regu_id diperlukan' }, { status: 400 })
   }
 
+  // Dua sisi harus diizinkan: ULP asal laporan, dan ULP tujuan pemindahan.
+  const izinAsal = await requireLaporan(id)
+  if (izinAsal.response) return izinAsal.response
+  const izinTujuan = await requireUlp(ulp_id)
+  if (izinTujuan.response) return izinTujuan.response
+
+  if (!(await reguMilikUlp(regu_id, ulp_id))) {
+    return NextResponse.json({ error: 'Regu tidak ada di ULP tujuan' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
-
-  const { data: laporan, error: fetchErr } = await admin
-    .from('laporan')
-    .select('id, nomor_tiket, ulp_id, regu_id, piket_id, status, keterangan')
-    .eq('id', id)
-    .single()
-
-  if (fetchErr || !laporan) {
-    return NextResponse.json({ error: 'Laporan tidak ditemukan' }, { status: 404 })
+  const laporan = izinAsal.data.laporan as {
+    id: string; nomor_tiket: string; ulp_id: string; regu_id: string | null
+    piket_id: string | null; status: string; keterangan: string | null
   }
 
   const pindahUlp = laporan.ulp_id !== ulp_id
@@ -51,7 +51,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    console.error('[laporan pindah]', updateErr)
+    return NextResponse.json({ error: 'Gagal memindahkan laporan' }, { status: 500 })
   }
 
   // Audit trail
@@ -68,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // WA notif ke grup ULP baru jika pindah ULP
   if (pindahUlp) {
-    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch(() => null)
+    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch((e) => console.error("[WA] gagal kirim notif pindah ULP:", e))
   }
 
   return NextResponse.json({ data: updated, error: null })
