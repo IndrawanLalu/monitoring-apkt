@@ -39,3 +39,27 @@ export const updateStatusSchema = z.object({
 export type CreateLaporanInput = z.infer<typeof createLaporanSchema>
 export type UpdateStatusInput = z.infer<typeof updateStatusSchema>
 export type CcCallbackLaporanInput = z.infer<typeof ccCallbackLaporanSchema>
+
+// Survey kepuasan pelanggan. Nilai sahnya sebelumnya hanya tertulis sebagai
+// komentar di supabase/survey_laporan.sql sementara API menerima string apa pun,
+// sehingga nilai ngawur bisa masuk dan ikut dihitung di agregasi /rekap-survey.
+const SKALA = ['sangat_buruk', 'buruk', 'cukup', 'baik', 'sangat_baik'] as const
+const ADA = ['ada', 'tidak_ada'] as const
+
+export const surveySchema = z.object({
+  kondisi_setelah: z.enum(['tidak_ada', 'kadang_padam', 'padam_sekarang']),
+  kualitas_pelayanan: z.enum(SKALA),
+  kecepatan_respon: z.enum(SKALA),
+  ada_pungli: z.enum(ADA),
+  ada_tips: z.enum(ADA),
+  ada_3s: z.enum(ADA),
+  ada_identitas: z.enum(ADA),
+  ada_apd: z.enum(ADA),
+  ada_hal_tidak_senang: z.enum(ADA),
+  kepuasan_keseluruhan: z.enum([
+    'sangat_puas', 'puas', 'biasa', 'tidak_puas', 'sangat_tidak_puas',
+  ]),
+  pesan_saran: z.string().max(1000).nullable().optional(),
+})
+
+export type SurveyInput = z.infer<typeof surveySchema>

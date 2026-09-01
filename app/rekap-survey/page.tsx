@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PasswordForm } from '../rekap-laporan/password-form'
+import { rekapTerbuka } from '../rekap-laporan/actions'
 import { RekapSurveyClientWrapper } from './rekap-survey-client-wrapper'
 import type { RekapSurveyData, SurveyItem } from './rekap-survey-client'
 
@@ -11,8 +11,7 @@ export default async function RekapSurveyPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string; ulp_id?: string }>
 }) {
-  const cookieStore = await cookies()
-  if (cookieStore.get('rekap_auth')?.value !== 'authenticated') {
+  if (!(await rekapTerbuka())) {
     return <PasswordForm />
   }
 

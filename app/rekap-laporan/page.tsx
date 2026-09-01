@@ -1,11 +1,32 @@
-import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PasswordForm } from './password-form'
+import { rekapTerbuka } from './actions'
 import { RekapClientWrapper } from './rekap-client-wrapper'
 import type { RekapData, Up3Group, UlpSummary, ReguSummary, LaporanItem } from './rekap-client'
 import type { StatusLaporan } from '@/types'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Ambil SEMUA baris dari sebuah query. Supabase memotong di 1000 baris tanpa
+ * memberi tanda apa pun, jadi query bulanan diam-diam mengecil begitu volume
+ * lewat batas itu — tidak ada error, tidak ada log, hanya angka rekap yang salah.
+ * Pola .range() ini sudah dipakai di app/(dashboard)/outage/page.tsx.
+ */
+async function ambilSemua<T>(
+  buat: (dari: number, sampai: number) => PromiseLike<{ data: T[] | null }>,
+): Promise<T[]> {
+  const UKURAN = 1000
+  const hasil: T[] = []
+  for (let dari = 0; ; dari += UKURAN) {
+    const { data } = await buat(dari, dari + UKURAN - 1)
+    const batch = data ?? []
+    hasil.push(...batch)
+    if (batch.length < UKURAN) break
+  }
+  return hasil
+}
+
 
 function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): boolean {
   const [mh, mm] = jamMulai.split(':').map(Number)
@@ -17,10 +38,8 @@ function isShiftActive(jamMulai: string, jamSelesai: string, nowM: number): bool
 }
 
 export default async function RekapLaporanPage() {
-  const cookieStore = await cookies()
-  const auth = cookieStore.get('rekap_auth')?.value
 
-  if (auth !== 'authenticated') {
+  if (!(await rekapTerbuka())) {
     return <PasswordForm />
   }
 
@@ -56,30 +75,34 @@ export default async function RekapLaporanPage() {
     supabase.from('piket')
       .select('id, ulp_id, shift_type(jam_mulai, jam_selesai)')
       .eq('tanggal', todayStr),
-    supabase.from('laporan')
+    ambilSemua((d, s) => supabase.from('laporan')
       .select('id, ulp_id, regu_id, status, nomor_tiket, nama_pelanggan, keterangan')
-      .not('status', 'eq', 'selesai'),
+      .not('status', 'eq', 'selesai')
+      .range(d, s)).then((data) => ({ data })),
     supabase.from('laporan')
       .select('id, ulp_id, regu_id, status, created_at')
       .eq('status', 'selesai')
       .gte('created_at', startOfDay)
       .lte('created_at', endOfDay),
-    supabase.from('laporan')
+    ambilSemua((d, s) => supabase.from('laporan')
       .select('id, ulp_id, status_callback')
       .gte('created_at', startOfDay)
       .lte('created_at', endOfDay)
-      .not('tanggal_callback', 'is', null),
-    supabase.from('laporan')
+      .not('tanggal_callback', 'is', null)
+      .range(d, s)).then((data) => ({ data })),
+    ambilSemua((d, s) => supabase.from('laporan')
       .select('id, ulp_id, status_callback')
       .gte('created_at', startOfMonth)
-      .not('tanggal_callback', 'is', null),
+      .not('tanggal_callback', 'is', null)
+      .range(d, s)).then((data) => ({ data })),
     supabase.from('survey_laporan')
       .select('laporan_id, submitted_at, laporan:laporan_id(ulp_id)')
       .gte('submitted_at', startOfDay)
       .lte('submitted_at', endOfDay),
-    supabase.from('survey_laporan')
+    ambilSemua((d, s) => supabase.from('survey_laporan')
       .select('laporan_id, submitted_at, laporan:laporan_id(ulp_id)')
-      .gte('submitted_at', startOfMonth),
+      .gte('submitted_at', startOfMonth)
+      .range(d, s)).then((data) => ({ data })),
     // Opsional — tabel up3 mungkin belum ada
     supabase.from('up3').select('id, nama').order('nama'),
     // Opsional — kolom up3_id di ulp mungkin belum ada

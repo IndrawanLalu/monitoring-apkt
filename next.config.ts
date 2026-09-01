@@ -22,6 +22,28 @@ const nextConfig: NextConfig = {
       static: 300,  // Static pages tetap di-cache 5 menit (default)
     },
   },
+  // Header keamanan dasar. CSP sengaja belum dipasang — butuh penyetelan
+  // hati-hati untuk inline style Next dan koneksi realtime Supabase.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          // Halaman /antrian dibuka pelanggan lewat link WA; tanpa ini, situs
+          // mana pun bisa mem-frame-nya.
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Token antrian ada di URL — jangan sampai ikut terkirim ke domain
+          // luar lewat header Referer.
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          ...(process.env.NODE_ENV === 'production'
+            ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
+            : []),
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig

@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { surveySchema } from '@/lib/validations/laporan'
+import { rateLimit, ipPemanggil } from '@/lib/rate-limit'
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
+
+  // Endpoint publik tanpa sesi — batasi agar tidak bisa dibanjiri.
+  const batas = rateLimit(`survey:${ipPemanggil(req.headers)}`, 10, 10 * 60_000)
+  if (!batas.lolos) {
+    return NextResponse.json({ error: 'Terlalu banyak percobaan, coba lagi nanti.' }, {
+      status: 429, headers: { 'Retry-After': String(batas.cobaLagiDetik) },
+    })
+  }
+
   const admin = createAdminClient()
 
   // Cari laporan berdasarkan token
@@ -34,7 +45,10 @@ export async function POST(
     return NextResponse.json({ error: 'Survey sudah pernah diisi untuk laporan ini' }, { status: 409 })
   }
 
-  const body = await req.json()
+  const parsed = surveySchema.safeParse(await req.json())
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
+  }
   const {
     kondisi_setelah,
     kualitas_pelayanan,
@@ -47,13 +61,7 @@ export async function POST(
     ada_hal_tidak_senang,
     kepuasan_keseluruhan,
     pesan_saran,
-  } = body
-
-  // Validasi field wajib
-  const required = { kondisi_setelah, kualitas_pelayanan, kecepatan_respon, ada_pungli, ada_tips, ada_3s, ada_identitas, ada_apd, ada_hal_tidak_senang, kepuasan_keseluruhan }
-  for (const [k, v] of Object.entries(required)) {
-    if (!v) return NextResponse.json({ error: `Field ${k} wajib diisi` }, { status: 400 })
-  }
+  } = parsed.data
 
   const { error } = await admin.from('survey_laporan').insert({
     laporan_id:           laporan.id,
@@ -74,7 +82,8 @@ export async function POST(
   })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[survey]', error)
+    return NextResponse.json({ error: 'Gagal menyimpan survey' }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })
