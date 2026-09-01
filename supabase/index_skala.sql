@@ -42,8 +42,12 @@ create index if not exists idx_laporan_ulp_created
 
 -- ── Callback ─────────────────────────────────────────────────
 -- Dipakai: hitungan callback harian & bulanan di /rekap-laporan.
+-- Sengaja TANPA ulp_id di depan: query-nya menyaring created_at +
+-- tanggal_callback saja, tanpa ulp_id. Kolom pertama yang tidak disaring
+-- membuat index tak bisa dipakai untuk range scan.
+-- (Diperbaiki di index_skala_2_bersihkan.sql — versi pertama file ini keliru.)
 create index if not exists idx_laporan_callback
-  on laporan (ulp_id, created_at)
+  on laporan (created_at)
   where tanggal_callback is not null;
 
 -- ── Survey ───────────────────────────────────────────────────
