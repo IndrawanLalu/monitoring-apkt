@@ -35,7 +35,7 @@ export default async function DashboardPage() {
     )
   }
 
-  const [piketsRes, regusRes, laporansRes, ulpsRes] = await Promise.all([
+  const [piketsRes, regusRes, laporanAktifRes, laporanSelesaiRes, ulpsRes] = await Promise.all([
     supabase
       .from('piket')
       .select('id, tanggal, ulp_id, shift_type_id, nama_cc, shift_type(id, nama, jam_mulai, jam_selesai)')
@@ -46,14 +46,25 @@ export default async function DashboardPage() {
       .select('id, ulp_id, nama, nomor_hp, created_at')
       .in('ulp_id', ulpIds)
       .order('nama'),
-    // Dashboard hanya butuh laporan AKTIF (semua umur) + SELESAI hari ini.
-    // Tanpa filter ini, query menyeret sampai 1000 laporan lama tiap load.
+    // Laporan AKTIF — ini yang benar-benar dirender jadi kartu regu.
     supabase
       .from('laporan')
       .select('id, nomor_tiket, ulp_id, piket_id, regu_id, nama_pelanggan, nomor_pelanggan, lokasi, status, keterangan, magic_token, created_at')
       .in('ulp_id', ulpIds)
-      .or(`status.neq.selesai,and(status.eq.selesai,resolved_at.gte.${today}T00:00:00+08:00)`)
+      .neq('status', 'selesai')
       .order('created_at', { ascending: false }),
+    // Laporan SELESAI hari ini — hanya dihitung, tidak pernah dirender
+    // (regu-card.tsx menyaring status !== 'selesai' sebelum menampilkan daftar,
+    // dan angkanya cuma muncul sebagai MiniStat). Karena itu kolomnya dipangkas
+    // ke yang benar-benar dipakai untuk menghitung. Pada 1000 laporan/hari,
+    // versi 12-kolom memindahkan ~475 KB tiap dashboard dibuka, hanya untuk
+    // menghasilkan sebuah bilangan.
+    supabase
+      .from('laporan')
+      .select('id, ulp_id, regu_id, status')
+      .in('ulp_id', ulpIds)
+      .eq('status', 'selesai')
+      .gte('resolved_at', `${today}T00:00:00+08:00`),
     supabase
       .from('ulp')
       .select('id, wa_template_callback')
@@ -98,7 +109,11 @@ Melayani Sepenuh Hati`
         return isShiftActive(st.jam_mulai, st.jam_selesai, nowM)
       }) ?? null
     const reguList = (regusRes.data ?? []).filter((r) => r.ulp_id === ulp.id)
-    const laporanList = (laporansRes.data ?? []).filter((l) => l.ulp_id === ulp.id)
+    // Gabung: aktif (lengkap) + selesai hari ini (ramping, hanya untuk dihitung).
+    const laporanList = [
+      ...(laporanAktifRes.data ?? []).filter((l) => l.ulp_id === ulp.id),
+      ...(laporanSelesaiRes.data ?? []).filter((l) => l.ulp_id === ulp.id),
+    ]
     const petugasList = activePiket
       ? petugasFlatList.filter((p) => p.piket_id === activePiket.id)
       : []

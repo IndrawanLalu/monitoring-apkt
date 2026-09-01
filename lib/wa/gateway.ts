@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Klien HTTP ke wa-gateway (Baileys). Menggantikan whatsapp-web.js in-process.
+// Klien HTTP ke wa-gateway (Baileys) — satu-satunya jalur WhatsApp aplikasi ini.
 // APKT = SATU akun/tenant di gateway (1 API key). Tiap user APKT = 1 sesi gateway
 // dengan id `apkt-<userId>`. Lihat DESIGN.md gateway.
 
@@ -12,7 +12,9 @@ const KEY = process.env.WA_GATEWAY_KEY // API key tenant "monitoring-apkt"
 
 /**
  * Aktif hanya jika WA_USE_GATEWAY=true DAN url+key terisi.
- * Default OFF → kirim tetap lewat whatsapp-web.js lama (produksi aman).
+ * Tidak ada lagi jalur cadangan: kalau ini false, fitur WhatsApp mati dan
+ * route terkait mengembalikan 503 dengan pesan yang jelas — bukan diam-diam
+ * jatuh ke whatsapp-web.js yang menjalankan satu Chrome penuh per user.
  */
 export function gatewayEnabled(): boolean {
   return process.env.WA_USE_GATEWAY === 'true' && !!BASE && !!KEY
@@ -151,8 +153,7 @@ export async function gatewayListGroups(userId: string): Promise<{ id: string; n
 }
 
 /**
- * Cari sesi gateway yang OPEN untuk sebuah ULP (di antara user ULP tsb).
- * Pengganti getWaClientForUlp() versi whatsapp-web.js.
+ * Cari sesi gateway yang OPEN untuk sebuah ULP, di antara user ULP tersebut.
  */
 // Cache pendek hasil pencarian sesi per ULP. Fungsi ini dipanggil pada SETIAP
 // kiriman WA — tanpa cache, tiap laporan baru berarti satu query `user_ulp`

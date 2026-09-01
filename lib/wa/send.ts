@@ -1,35 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getWaClient } from '@/lib/wa/client'
 import { buildPesanLaporanBaru, buildPesanUpdateStatus } from '@/lib/wa/messages'
 import { normJoin } from '@/lib/utils/format'
-import { gatewayEnabled, getOpenSessionForUlp, gatewaySend } from '@/lib/wa/gateway'
+import { getOpenSessionForUlp, gatewaySend } from '@/lib/wa/gateway'
 import type { StatusLaporan } from '@/types'
 
-// Cari WA client whatsapp-web.js yang aktif untuk sebuah ULP (jalur LAMA).
-async function getWaClientForUlp(ulpId: string) {
-  const admin = createAdminClient()
-  const { data: userUlps } = await admin
-    .from('user_ulp')
-    .select('user_id')
-    .eq('ulp_id', ulpId)
-
-  for (const { user_id } of userUlps ?? []) {
-    const client = getWaClient(user_id)
-    // client.info null = belum ready (masih initializing atau frame detached)
-    if (client?.info) return client
-  }
-  return null
-}
-
 /**
- * Kirim teks ke grup WA sebuah ULP — dua jalur: gateway (Baileys) kalau aktif,
- * fallback whatsapp-web.js in-process. Melempar Error dengan pesan yang layak
- * ditampilkan ke pengguna kalau tidak ada sesi WA yang bisa dipakai.
+ * Kirim teks ke grup WA sebuah ULP lewat wa-gateway (Baileys).
+ * Melempar Error dengan pesan yang layak ditampilkan ke pengguna kalau tidak
+ * ada sesi WA yang bisa dipakai.
  *
  * Dipakai bersama oleh /api/wa/kirim-regu, /api/wa/rekap-piket, dan
- * lib/wa/rekap-gangguan.ts supaya cabang gateway tidak perlu ditulis ulang
- * di tiap pemanggil — dua route pertama sempat tertinggal saat migrasi ke
- * gateway dan diam-diam tidak pernah mengirim apa pun.
+ * lib/wa/rekap-gangguan.ts — dua route pertama sempat tertinggal saat migrasi
+ * ke gateway dan diam-diam tidak pernah mengirim apa pun.
  */
 export async function kirimTeksKeGrupUlp(
   ulpId: string,
@@ -37,18 +19,11 @@ export async function kirimTeksKeGrupUlp(
   text: string,
   mentions?: string[],
 ): Promise<void> {
-  if (gatewayEnabled()) {
-    const sessionId = await getOpenSessionForUlp(ulpId)
-    if (!sessionId) {
-      throw new Error('Tidak ada sesi WhatsApp yang terhubung di gateway untuk ULP ini. Hubungkan WA dulu di Settings.')
-    }
-    await gatewaySend(sessionId, { to: waGrupId, text, mentions })
-    return
+  const sessionId = await getOpenSessionForUlp(ulpId)
+  if (!sessionId) {
+    throw new Error('Tidak ada sesi WhatsApp yang terhubung di gateway untuk ULP ini. Hubungkan WA dulu di Settings.')
   }
-
-  const client = await getWaClientForUlp(ulpId)
-  if (!client) throw new Error('WhatsApp belum terhubung.')
-  await client.sendMessage(waGrupId, text)
+  await gatewaySend(sessionId, { to: waGrupId, text, mentions })
 }
 
 /** Jam WITA (UTC+8) saat ini — jangan pakai getHours() yang ikut timezone mesin. */
@@ -103,32 +78,16 @@ export async function kirimLaporanBaru(laporanId: string): Promise<void> {
   // replace lama diam-diam gagal begitu format pesannya berubah.
   const pesan = buildPesanLaporanBaru({ ...laporan, regu }, nomorAntrian, waNum)
 
-  // --- Jalur BARU: gateway (Baileys) ---
-  if (gatewayEnabled()) {
-    const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
-    if (!sessionId) return
-    const { id } = await gatewaySend(sessionId, {
-      to: ulp.wa_grup_id,
-      text: pesan,
-      mentions: waNum ? [waNum] : undefined,
-    })
-    if (id) {
-      await admin.from('laporan').update({ wa_message_id: id }).eq('id', laporanId)
-    }
-    return
+  const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
+  if (!sessionId) return
+  const { id } = await gatewaySend(sessionId, {
+    to: ulp.wa_grup_id,
+    text: pesan,
+    mentions: waNum ? [waNum] : undefined,
+  })
+  if (id) {
+    await admin.from('laporan').update({ wa_message_id: id }).eq('id', laporanId)
   }
-
-  // --- Jalur LAMA: whatsapp-web.js in-process ---
-  const waClient = await getWaClientForUlp(laporan.ulp_id)
-  if (!waClient) return
-
-  const mentions = waNum ? [`${waNum}@c.us`] : undefined
-  const msg = await waClient.sendMessage(ulp.wa_grup_id, pesan, { mentions })
-
-  await admin
-    .from('laporan')
-    .update({ wa_message_id: msg.id._serialized })
-    .eq('id', laporanId)
 }
 
 export async function kirimUpdateStatus(
@@ -163,36 +122,12 @@ export async function kirimUpdateStatus(
     pesan = pesan.replace(`| ${regu?.nama}`, `| *${regu?.nama}* (@${waNum})`)
   }
 
-  // --- Jalur BARU: gateway (Baileys) ---
-  if (gatewayEnabled()) {
-    const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
-    if (!sessionId) return
-    await gatewaySend(sessionId, {
-      to: ulp.wa_grup_id,
-      text: pesan,
-      mentions: waNum ? [waNum] : undefined,
-      replyTo: laporan.wa_message_id ?? undefined, // reply ke pesan laporan asli
-    })
-    return
-  }
-
-  // --- Jalur LAMA: whatsapp-web.js in-process ---
-  const waClient = await getWaClientForUlp(laporan.ulp_id)
-  if (!waClient) return
-
-  const mentions = waNum ? [`${waNum}@c.us`] : undefined
-  try {
-    if (laporan.wa_message_id) {
-      const originalMsg = await waClient.getMessageById(laporan.wa_message_id)
-      if (originalMsg) {
-        await originalMsg.reply(pesan)
-      } else {
-        await waClient.sendMessage(ulp.wa_grup_id, pesan, { mentions })
-      }
-    } else {
-      await waClient.sendMessage(ulp.wa_grup_id, pesan, { mentions })
-    }
-  } catch {
-    await waClient.sendMessage(ulp.wa_grup_id, pesan, { mentions })
-  }
+  const sessionId = await getOpenSessionForUlp(laporan.ulp_id)
+  if (!sessionId) return
+  await gatewaySend(sessionId, {
+    to: ulp.wa_grup_id,
+    text: pesan,
+    mentions: waNum ? [waNum] : undefined,
+    replyTo: laporan.wa_message_id ?? undefined, // reply ke pesan laporan asli
+  })
 }

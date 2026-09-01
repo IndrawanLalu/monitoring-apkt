@@ -45,7 +45,7 @@ export function WaTab({ userId, ulpId, waGrupId, onGrupIdChange, waSession, onSe
   const [loadingGrup, setLoadingGrup]       = useState(false);
   const [grupList, setGrupList]             = useState<{ nama: string; id: string }[]>([]);
 
-  // Polling status via /api/wa/status (abstraksi gateway vs whatsapp-web.js lama)
+  // Polling status via /api/wa/status
   useEffect(() => {
     if (waSession?.status !== "loading" && waSession?.status !== "scanning") return;
     const interval = setInterval(async () => {

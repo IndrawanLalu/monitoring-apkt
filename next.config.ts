@@ -10,12 +10,6 @@ const nextConfig: NextConfig = {
     '192.168.1.70.nip.io',
     '192.168.1.3.nip.io',
   ],
-  serverExternalPackages: [
-    'whatsapp-web.js',
-    'puppeteer',
-    'puppeteer-core',
-    'unzipper',
-  ],
   experimental: {
     staleTimes: {
       dynamic: 0,   // Dynamic pages (force-dynamic) tidak di-cache di browser

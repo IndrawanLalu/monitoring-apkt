@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getOrCreateWaClient, isClientRegistered, markClientRegistered } from '@/lib/wa/client'
 import { gatewayEnabled, gatewayRequestPairingCode } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
@@ -19,73 +18,17 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient()
 
-  // --- Jalur BARU: gateway (Baileys) ---
-  if (gatewayEnabled()) {
-    await admin.from('wa_session').upsert({ user_id: userId, status: 'loading', session_data: null }, { onConflict: 'user_id' })
-    try {
-      const { code } = await gatewayRequestPairingCode(userId, cleanPhone)
-      await admin.from('wa_session').update({ status: 'scanning', session_data: { pairing_code: code } }).eq('user_id', userId)
-      return NextResponse.json({ success: true, code })
-    } catch (e) {
-      await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', userId)
-      return NextResponse.json({ error: (e as Error).message }, { status: 500 })
-    }
-  }
-  await admin.from('wa_session').upsert({ user_id: userId, status: 'loading' }, { onConflict: 'user_id' })
-
-  const client = getOrCreateWaClient(userId)
-
-  if (!isClientRegistered(userId)) {
-    markClientRegistered(userId)
-
-    client.on('qr', async () => {
-      try {
-        const code = await client.requestPairingCode(cleanPhone)
-        await admin
-          .from('wa_session')
-          .update({ status: 'scanning', session_data: { pairing_code: code } })
-          .eq('user_id', userId)
-      } catch (err) {
-        console.error('[WA pairing-code error]', err)
-        await admin
-          .from('wa_session')
-          .update({ status: 'disconnected', session_data: null })
-          .eq('user_id', userId)
-      }
-    })
-
-    client.on('ready', async () => {
-      const info = client.info
-
-      await admin
-        .from('wa_session')
-        .update({ status: 'connected', session_data: { wa_number: info?.wid?.user } })
-        .eq('user_id', userId)
-
-      await new Promise((r) => setTimeout(r, 5000))
-      try {
-        const chats = await client.getChats()
-        const groups = chats
-          .filter((c) => c.isGroup)
-          .map((c) => ({ nama: c.name, id: c.id._serialized }))
-        await admin
-          .from('wa_session')
-          .update({ session_data: { wa_number: info?.wid?.user, groups } })
-          .eq('user_id', userId)
-      } catch (err) {
-        console.error('[WA getChats error]', err)
-      }
-    })
-
-    client.on('disconnected', async () => {
-      await admin
-        .from('wa_session')
-        .update({ status: 'disconnected', session_data: null })
-        .eq('user_id', userId)
-    })
-
-    client.initialize()
+  if (!gatewayEnabled()) {
+    return NextResponse.json({ error: 'wa-gateway belum dikonfigurasi.' }, { status: 503 })
   }
 
-  return NextResponse.json({ success: true })
+  await admin.from('wa_session').upsert({ user_id: userId, status: 'loading', session_data: null }, { onConflict: 'user_id' })
+  try {
+    const { code } = await gatewayRequestPairingCode(userId, cleanPhone)
+    await admin.from('wa_session').update({ status: 'scanning', session_data: { pairing_code: code } }).eq('user_id', userId)
+    return NextResponse.json({ success: true, code })
+  } catch (e) {
+    await admin.from('wa_session').update({ status: 'disconnected', session_data: null }).eq('user_id', userId)
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 }
