@@ -54,14 +54,9 @@ set up3_id = (
 where p.role = 'up3' and p.up3_id is null;
 
 -- ── 4. BOOTSTRAP super_admin ─────────────────────────────────
--- Harus ada satu super_admin pertama yang dibuat lewat SQL; setelah itu
--- semua pengelolaan user bisa dilakukan dari UI tanpa membuka kode lagi.
---
--- HAPUS KOMENTAR di bawah dan ganti emailnya dengan akun yang Anda pilih.
--- Akun itu harus SUDAH ADA di Supabase Auth dan punya baris di profiles.
---
--- update profiles set role = 'super_admin'
--- where id = (select id from auth.users where email = 'ganti@dengan-email-anda');
+-- Dipindahkan ke peran_3_bootstrap.sql, karena akun yang dipilih ternyata
+-- belum punya baris profiles sama sekali — jadi butuh INSERT, bukan UPDATE.
+-- Jalankan berkas itu setelah yang ini.
 
 -- ── 5. Fungsi cakupan ────────────────────────────────────────
 -- get_my_ulp_id() versi lama membaca profiles.ulp_id — kolom yang SUDAH

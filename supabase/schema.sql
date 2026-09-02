@@ -10,6 +10,7 @@
 --   3. migration_up3.sql
 --   4. peran_1_enum.sql          — WAJIB dijalankan sendiri
 --   5. peran_2_struktur.sql      — UIW, peran baru, RLS yang berlaku
+--   5b. peran_3_bootstrap.sql   — pembagian ULP per UP3 + super_admin pertama
 --   6. index_skala.sql + index_skala_2_bersihkan.sql
 --   7. rekap_outage.sql
 --
