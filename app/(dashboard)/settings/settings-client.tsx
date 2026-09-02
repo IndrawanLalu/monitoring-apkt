@@ -9,6 +9,7 @@ import { CallbackTemplateTab } from "./callback-template-tab";
 import { UsersTab } from "./users-tab";
 import { UlpsTab } from "./ulps-tab";
 import { ImportTab } from "./import-tab";
+import { WilayahTab } from "./wilayah-tab";
 
 interface WaSession {
   id: string;
@@ -37,7 +38,7 @@ interface Props {
   waSession: WaSession | null;
 }
 
-type Tab = "wa" | "regu" | "petugas" | "callback" | "users" | "ulps" | "import";
+type Tab = "wa" | "regu" | "petugas" | "callback" | "users" | "ulps" | "up3" | "uiw" | "import";
 
 export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Props) {
   const [tab, setTab] = useState<Tab>("wa");
@@ -92,6 +93,9 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
     { key: "callback", label: "📞 Template Callback" },
     ...(bolehKelola ? [{ key: "users" as Tab, label: "👥 Manajemen User" }] : []),
     ...(bolehKelola && profile.up3Id ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
+    // UP3 dikelola super_admin dan uiw; UIW hanya super_admin.
+    ...(["super_admin", "uiw"].includes(profile.role) ? [{ key: "up3" as Tab, label: "🏭 Kelola UP3" }] : []),
+    ...(profile.role === "super_admin" ? [{ key: "uiw" as Tab, label: "🌐 Kelola UIW" }] : []),
     ...(bolehKelola ? [{ key: "import" as Tab, label: "📥 Import Petugas" }] : []),
   ];
 
@@ -199,8 +203,16 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
           <CallbackTemplateTab key={current.ulp.id} ulpId={current.ulp.id} initialTemplate={current.templateCallback} />
         )}
         {tab === "users" && (
-          <UsersTab ulps={profile.ulps ?? []} onToast={showToast} />
+          <UsersTab ulps={profile.ulps ?? []} peranSaya={profile.role} onToast={showToast} />
         )}
+        {tab === "up3" && (
+          <WilayahTab tingkat="up3" peranSaya={profile.role} onToast={showToast} />
+        )}
+
+        {tab === "uiw" && (
+          <WilayahTab tingkat="uiw" peranSaya={profile.role} onToast={showToast} />
+        )}
+
         {tab === "ulps" && (
           <UlpsTab onToast={showToast} />
         )}

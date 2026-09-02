@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input, PasswordInput } from '@/components/ui/input'
+import { Input, PasswordInput, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { useKonfirmasi } from '@/components/ui/konfirmasi'
+import { BOLEH_MEMBUAT, LABEL_ROLE } from '@/constants'
 
 interface UlpInfo {
   id: string
@@ -32,10 +33,14 @@ const LABEL_PERAN: Record<string, { teks: string; warna: string }> = {
 
 interface Props {
   ulps: UlpInfo[]
+  /** Peran akun yang sedang login — menentukan peran apa saja yang boleh dibuat. */
+  peranSaya: string
   onToast: (text: string, type?: 'success' | 'error' | 'info') => void
 }
 
-export function UsersTab({ ulps, onToast }: Props) {
+interface Wilayah { id: string; nama: string; kode: string }
+
+export function UsersTab({ ulps, peranSaya, onToast }: Props) {
   const konfirmasi = useKonfirmasi()
   const [users, setUsers] = useState<UserCc[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,6 +54,15 @@ export function UsersTab({ ulps, onToast }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [selectedUlps, setSelectedUlps] = useState<string[]>([])
+  const [peran, setPeran] = useState('operator')
+  const [up3Id, setUp3Id] = useState('')
+  const [uiwId, setUiwId] = useState('')
+  const [daftarUp3, setDaftarUp3] = useState<Wilayah[]>([])
+  const [daftarUiw, setDaftarUiw] = useState<Wilayah[]>([])
+
+  // Peran apa saja yang boleh saya buat. Sumbernya sama dengan yang dipakai
+  // server, jadi UI tidak pernah menawarkan pilihan yang nanti ditolak API.
+  const peranBoleh = BOLEH_MEMBUAT[peranSaya] ?? []
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -67,6 +81,22 @@ export function UsersTab({ ulps, onToast }: Props) {
 
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
+  // Daftar wilayah untuk dropdown; hanya diambil kalau memang bisa dipakai.
+  useEffect(() => {
+    if (!peranBoleh.includes('up3') && !peranBoleh.includes('uiw')) return
+    let batal = false
+    ;(async () => {
+      const [rUp3, rUiw] = await Promise.all([
+        fetch('/api/admin/up3').then(r => r.json()).catch(() => ({})),
+        fetch('/api/admin/uiw').then(r => r.json()).catch(() => ({})),
+      ])
+      if (batal) return
+      setDaftarUp3(rUp3.data ?? [])
+      setDaftarUiw(rUiw.data ?? [])
+    })()
+    return () => { batal = true }
+  }, [peranBoleh])
+
   const ulpMap = new Map(ulps.map(u => [u.id, u.nama]))
 
   function openAdd() {
@@ -76,6 +106,9 @@ export function UsersTab({ ulps, onToast }: Props) {
     setEmail('')
     setPassword('')
     setSelectedUlps([])
+    setPeran(peranBoleh[peranBoleh.length - 1] ?? 'operator')
+    setUp3Id('')
+    setUiwId('')
     setError(null)
   }
 
@@ -86,6 +119,9 @@ export function UsersTab({ ulps, onToast }: Props) {
     setEmail(user.email)
     setPassword('') // Kosongkan, hanya diisi jika ingin ganti password
     setSelectedUlps(user.ulps || [user.ulp_id])
+    setPeran(user.role)
+    setUp3Id('')
+    setUiwId('')
     setError(null)
   }
 
@@ -104,10 +140,15 @@ export function UsersTab({ ulps, onToast }: Props) {
       setError('Email dan password wajib diisi untuk user baru')
       return
     }
-    if (selectedUlps.length === 0) {
-      setError('Pilih minimal 1 ULP untuk cakupan tugas CC')
+    // Cakupan yang wajib berbeda per peran: operator butuh ULP, up3 butuh
+    // UP3, uiw butuh UIW. Diperiksa juga di server; ini supaya pesannya
+    // muncul sebelum permintaan dikirim.
+    if (peran === 'operator' && selectedUlps.length === 0) {
+      setError('Pilih minimal 1 ULP untuk cakupan tugas operator')
       return
     }
+    if (peran === 'up3' && !up3Id) { setError('Pilih UP3 untuk akun Admin UP3'); return }
+    if (peran === 'uiw' && !uiwId) { setError('Pilih UIW untuk akun Admin UIW'); return }
 
     setSubmitting(true)
     try {
@@ -115,12 +156,18 @@ export function UsersTab({ ulps, onToast }: Props) {
         const res = await fetch('/api/admin/users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: nama.trim(), email: email.trim(), password, ulp_ids: selectedUlps }),
+          body: JSON.stringify({
+            nama: nama.trim(), email: email.trim(), password,
+            role: peran,
+            ulp_ids: peran === 'operator' ? selectedUlps : [],
+            up3_id: peran === 'up3' ? up3Id : undefined,
+            uiw_id: peran === 'uiw' ? uiwId : undefined,
+          }),
         })
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal membuat user')
         setUsers(prev => [...prev, json.data])
-        onToast('User CC berhasil dibuat', 'success')
+        onToast('Akun berhasil dibuat', 'success')
       } else if (modalMode === 'edit' && selectedUser) {
         const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
           method: 'PATCH',
@@ -128,13 +175,19 @@ export function UsersTab({ ulps, onToast }: Props) {
           body: JSON.stringify({
             nama: nama.trim(),
             password: password ? password : undefined,
-            ulp_ids: selectedUlps,
+            ulp_ids: peran === 'operator' ? selectedUlps : [],
+            // Peran hanya dikirim kalau benar-benar berubah — mengirimnya
+            // apa adanya akan ditolak untuk akun sendiri.
+            role: peran !== selectedUser.role ? peran : undefined,
+            up3_id: peran === 'up3' ? up3Id : undefined,
+            uiw_id: peran === 'uiw' ? uiwId : undefined,
           }),
         })
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal update user')
-        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, nama: nama.trim(), ulps: selectedUlps, ulp_id: selectedUlps[0] } : u))
-        onToast('User CC berhasil diupdate', 'success')
+        setUsers(prev => prev.map(u => u.id === selectedUser.id
+          ? { ...u, nama: nama.trim(), role: peran, ulps: selectedUlps, ulp_id: selectedUlps[0] } : u))
+        onToast('Akun berhasil diperbarui', 'success')
       }
       setModalMode(null)
     } catch (err: any) {
@@ -264,7 +317,43 @@ export function UsersTab({ ulps, onToast }: Props) {
             hint={modalMode === 'add' ? 'Minimal 8 karakter, harus memuat huruf dan angka' : undefined}
           />
 
-          <div>
+          {/* Peran menentukan bidang cakupan mana yang muncul di bawahnya.
+              Pilihannya dibatasi peran akun yang sedang login. */}
+          {peranBoleh.length > 1 && (
+            <Select
+              label="Peran *"
+              value={peran}
+              onChange={e => setPeran(e.target.value)}
+              hint={
+                peran === 'operator' ? 'Hanya melihat ULP yang dipilih di bawah'
+                : peran === 'up3'    ? 'Melihat seluruh ULP di UP3 yang dipilih'
+                : peran === 'uiw'    ? 'Melihat seluruh UP3 dan ULP di wilayahnya'
+                : undefined
+              }
+            >
+              {peranBoleh.map(r => (
+                <option key={r} value={r}>{LABEL_ROLE[r] ?? r}</option>
+              ))}
+            </Select>
+          )}
+
+          {peran === 'up3' && (
+            <Select label="UP3 *" value={up3Id} onChange={e => setUp3Id(e.target.value)}
+              hint="Akun ini akan melihat semua ULP di UP3 tersebut">
+              <option value="">— pilih UP3 —</option>
+              {daftarUp3.map(u => <option key={u.id} value={u.id}>{u.nama} ({u.kode})</option>)}
+            </Select>
+          )}
+
+          {peran === 'uiw' && (
+            <Select label="UIW *" value={uiwId} onChange={e => setUiwId(e.target.value)}
+              hint="Akun ini akan melihat semua UP3 dan ULP di wilayah tersebut">
+              <option value="">— pilih UIW —</option>
+              {daftarUiw.map(u => <option key={u.id} value={u.id}>{u.nama} ({u.kode})</option>)}
+            </Select>
+          )}
+
+          <div style={{ display: peran === 'operator' ? 'block' : 'none' }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'block' }}>
               Pilih Cakupan ULP (Bisa lebih dari satu) <span style={{ color: '#E4002B' }}>*</span>
             </label>
