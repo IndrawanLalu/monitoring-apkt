@@ -75,24 +75,37 @@ fi
 # ─── 4. Blok penolak hostname tak dikenal ───────────────────
 # Tanpa ini, permintaan ke IP jatuh ke server block pertama menurut abjad —
 # aplikasi tetap terlayani lewat HTTP polos, jadi langkah 2 sia-sia.
-cat > "$SA/tolak-default" <<'NGINX'
-# Menolak permintaan dengan hostname tak dikenal: IP mentah, nip.io lama,
-# atau pemindai otomatis. Setiap aplikasi punya server_name eksplisit
-# sendiri, jadi tidak ada yang bergantung pada blok default ini.
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    return 444;
-}
+# Baris listen IPv6 hanya dipasang kalau kernel memang mendukungnya.
+# Tanpa pemeriksaan ini, `listen [::]:80` gagal dengan
+# "Address family not supported by protocol" di VPS tanpa IPv6.
+if [ -f /proc/net/if_inet6 ]; then
+  L6_80="    listen [::]:80 default_server;"
+  L6_443="    listen [::]:443 ssl default_server;"
+  info "IPv6 tersedia — listener IPv6 ikut dipasang"
+else
+  L6_80=""
+  L6_443=""
+  info "IPv6 tidak aktif di server ini — listener IPv6 dilewati"
+fi
 
-server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    server_name _;
-    ssl_reject_handshake on;
-}
-NGINX
+{
+  echo "# Menolak permintaan dengan hostname tak dikenal: IP mentah, nip.io lama,"
+  echo "# atau pemindai otomatis. Setiap aplikasi punya server_name eksplisit"
+  echo "# sendiri, jadi tidak ada yang bergantung pada blok default ini."
+  echo "server {"
+  echo "    listen 80 default_server;"
+  [ -n "$L6_80" ] && echo "$L6_80"
+  echo "    server_name _;"
+  echo "    return 444;"
+  echo "}"
+  echo ""
+  echo "server {"
+  echo "    listen 443 ssl default_server;"
+  [ -n "$L6_443" ] && echo "$L6_443"
+  echo "    server_name _;"
+  echo "    ssl_reject_handshake on;"
+  echo "}"
+} > "$SA/tolak-default"
 ln -sf "$SA/tolak-default" "$SE/tolak-default"
 ok "Blok penolak dipasang"
 
