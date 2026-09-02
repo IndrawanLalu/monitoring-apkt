@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { loginSchema } from '@/lib/validations/auth'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input, PasswordInput } from '@/components/ui/input'
 
 const PESAN_TANPA_PROFIL =
   'Akun ini sudah terdaftar untuk login, tapi profil penggunanya belum dibuat sehingga belum terhubung ke ULP mana pun. Hubungi admin, atau masuk dengan akun lain.'
@@ -152,9 +152,8 @@ function LoginView() {
               required
             />
 
-            <Input
+            <PasswordInput
               label="Password"
-              type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

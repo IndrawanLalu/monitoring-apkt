@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { passwordBaruSchema } from '@/lib/validations/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     // 1. Update password di Supabase Auth jika ada
     if (password && password.trim().length > 0) {
+      const cekPassword = passwordBaruSchema.safeParse(password)
+      if (!cekPassword.success) {
+        return NextResponse.json({ error: cekPassword.error.issues[0].message }, { status: 400 })
+      }
       const { error: pwError } = await admin.auth.admin.updateUserById(id, { password })
       if (pwError) {
         return NextResponse.json({ error: pwError.message }, { status: 400 })
@@ -89,6 +94,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   const { id } = await params
+
+  // Tanpa penjagaan ini, seorang admin bisa menghapus akunnya sendiri dan
+  // mengunci diri dari sistem — pemulihannya hanya lewat SQL manual.
+  if (id === profile.id) {
+    return NextResponse.json(
+      { error: 'Anda tidak bisa menghapus akun Anda sendiri. Minta admin lain yang melakukannya.' },
+      { status: 400 },
+    )
+  }
+
   const admin = createAdminClient()
   const adminUlpIds = profile.ulps.map((u) => u.id)
 

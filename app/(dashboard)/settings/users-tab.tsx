@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input, PasswordInput } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
@@ -16,8 +16,18 @@ interface UserCc {
   id: string
   nama: string
   email: string
+  role: string
+  /** Akun yang sedang login — tidak boleh menghapus dirinya sendiri. */
+  diriSendiri?: boolean
   ulp_id: string
   ulps: string[]
+}
+
+/** Label peran versi manusia. Sengaja tidak memakai nilai enum mentah di UI. */
+const LABEL_PERAN: Record<string, { teks: string; warna: string }> = {
+  admin:      { teks: 'Admin UP3', warna: '#0070C0' },
+  supervisor: { teks: 'Supervisor', warna: '#7C3AED' },
+  cc:         { teks: 'Operator',  warna: '#64748B' },
 }
 
 interface Props {
@@ -163,7 +173,7 @@ export function UsersTab({ ulps, onToast }: Props) {
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>👥 Manajemen User CC</h2>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Kelola akun petugas Command Center untuk UP3 Anda. Satu akun CC dapat ditugaskan ke satu atau beberapa ULP sekaligus.
+            Kelola akun pengguna di UP3 Anda. Satu akun dapat ditugaskan ke satu atau beberapa ULP sekaligus.
           </p>
         </div>
         <Button variant="primary" onClick={openAdd}>+ Buat User CC Baru</Button>
@@ -185,7 +195,21 @@ export function UsersTab({ ulps, onToast }: Props) {
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{user.nama}</h3>
                     <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0', fontFamily: 'monospace' }}>{user.email}</p>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, backgroundColor: 'rgba(29,185,84,0.12)', color: '#1DB954', border: '1px solid rgba(29,185,84,0.25)' }}>CC Petugas</span>
+                  {(() => {
+                    // Badge peran sungguhan, bukan label statis "CC Petugas".
+                    // Daftar ini kini memuat semua peran, jadi labelnya harus
+                    // menunjukkan peran yang sebenarnya.
+                    const p = LABEL_PERAN[user.role] ?? { teks: user.role, warna: '#64748B' }
+                    return (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                        backgroundColor: `${p.warna}1F`, color: p.warna,
+                        border: `1px solid ${p.warna}40`, whiteSpace: 'nowrap',
+                      }}>
+                        {p.teks}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 <div>
@@ -202,7 +226,16 @@ export function UsersTab({ ulps, onToast }: Props) {
 
               <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={() => openEdit(user)}>Edit</Button>
-                <Button variant="danger" size="sm" style={{ flex: 1 }} onClick={() => handleDelete(user)}>Hapus</Button>
+                {user.diriSendiri ? (
+                  <span style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)',
+                  }}>
+                    Akun Anda
+                  </span>
+                ) : (
+                  <Button variant="danger" size="sm" style={{ flex: 1 }} onClick={() => handleDelete(user)}>Hapus</Button>
+                )}
               </div>
             </div>
           ))}
@@ -223,12 +256,12 @@ export function UsersTab({ ulps, onToast }: Props) {
             hint={modalMode === 'edit' ? 'Email login tidak dapat diubah' : 'Gunakan format email untuk login'}
           />
 
-          <Input
+          <PasswordInput
             label={modalMode === 'add' ? 'Password *' : 'Ganti Password (Opsional)'}
-            type="password"
-            placeholder={modalMode === 'add' ? 'Minimal 6 karakter' : 'Kosongkan jika tidak ingin mengubah password'}
+            placeholder={modalMode === 'add' ? 'Minimal 8 karakter' : 'Kosongkan jika tidak ingin mengubah password'}
             value={password}
             onChange={e => setPassword(e.target.value)}
+            hint={modalMode === 'add' ? 'Minimal 8 karakter, harus memuat huruf dan angka' : undefined}
           />
 
           <div>

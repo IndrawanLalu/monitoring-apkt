@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { passwordBaruSchema } from '@/lib/validations/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,12 +30,13 @@ export async function GET() {
     return NextResponse.json({ data: [] })
   }
 
-  // 2. Ambil profiles dengan role 'cc' yang id-nya ada di userIdsInUlps
+  // 2. Ambil profil SEMUA peran, bukan hanya 'cc'.
+  // Versi lama menyaring .eq('role','cc') sehingga admin tidak pernah muncul
+  // di daftar — tidak bisa dilihat, apalagi dicabut, lewat UI.
   const { data: profilesRows, error: profError } = await admin
     .from('profiles')
     .select('id, nama, role')
     .in('id', userIdsInUlps)
-    .eq('role', 'cc')
     .order('nama')
 
   if (profError) {
@@ -68,6 +70,10 @@ export async function GET() {
     return {
       id: uid,
       nama: p.nama as string,
+      role: p.role as string,
+      // Akun sendiri ditandai supaya UI bisa mencegah admin menghapus dirinya
+      // sendiri dan mengunci diri dari sistem.
+      diriSendiri: uid === profile.id,
       email: authUsersMap.get(uid) ?? '-',
       ulp_id: assignedUlps[0] ?? '',
       ulps: assignedUlps,
@@ -92,6 +98,12 @@ export async function POST(req: Request) {
 
     if (!nama || !email || !password || !ulp_ids || !Array.isArray(ulp_ids) || ulp_ids.length === 0) {
       return NextResponse.json({ error: 'Semua field wajib diisi dan pilih minimal 1 ULP' }, { status: 400 })
+    }
+
+    // Divalidasi di server, bukan hanya di form — form bisa dilewati.
+    const cekPassword = passwordBaruSchema.safeParse(password)
+    if (!cekPassword.success) {
+      return NextResponse.json({ error: cekPassword.error.issues[0].message }, { status: 400 })
     }
 
     // Validasi ulp_ids harus bagian dari adminUlpIds

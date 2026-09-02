@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef } from 'react'
+import { forwardRef, useState } from 'react'
 import { cn } from '@/lib/utils/cn'
 
 /* ---- shared label style ---- */
@@ -56,6 +56,65 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
   },
 )
 Input.displayName = 'Input'
+
+/* ---- PasswordInput ---- */
+/**
+ * Input password dengan tombol lihat/sembunyi.
+ *
+ * Dipakai di halaman login dan form user. Tanpa ini, salah ketik password
+ * di layar HP tidak bisa dideteksi sama sekali — pengguna hanya melihat titik
+ * dan tidak tahu di mana salahnya.
+ */
+interface PasswordInputProps extends Omit<InputProps, 'type'> {
+  label?: string
+}
+
+const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
+  ({ className, label, error, hint, id, style, ...props }, ref) => {
+    const [terlihat, setTerlihat] = useState(false)
+    const inputId = id ?? label?.toLowerCase().replace(/\s+/g, '-')
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {label && <label htmlFor={inputId} style={labelStyle}>{label}</label>}
+        <div style={{ position: 'relative', display: 'flex' }}>
+          <input
+            ref={ref}
+            id={inputId}
+            type={terlihat ? 'text' : 'password'}
+            className={cn('input', error && 'input-error', className)}
+            style={{
+              width: '100%',
+              paddingRight: 44,
+              borderColor: error ? '#E4002B' : undefined,
+              boxShadow: error ? '0 0 0 3px rgba(228,0,43,0.15)' : undefined,
+              ...style,
+            }}
+            {...props}
+          />
+          <button
+            type="button"
+            onClick={() => setTerlihat(v => !v)}
+            aria-label={terlihat ? 'Sembunyikan password' : 'Tampilkan password'}
+            aria-pressed={terlihat}
+            tabIndex={-1}
+            style={{
+              position: 'absolute', right: 4, top: 0, bottom: 0,
+              width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 15, lineHeight: 1, padding: 0,
+            }}
+          >
+            {terlihat ? '🙈' : '👁'}
+          </button>
+        </div>
+        {error && <p style={errorStyle}>{error}</p>}
+        {hint && !error && <p style={hintStyle}>{hint}</p>}
+      </div>
+    )
+  },
+)
+PasswordInput.displayName = 'PasswordInput'
 
 /* ---- Textarea ---- */
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -126,4 +185,4 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
 )
 Select.displayName = 'Select'
 
-export { Input, Textarea, Select }
+export { Input, PasswordInput, Textarea, Select }
