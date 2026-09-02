@@ -84,9 +84,15 @@ export async function requireLaporan(
  *   up3 / admin  semua ULP di UP3-nya
  *   operator/cc  hanya ULP yang di-assign padanya
  *
- * ULP yang di-assign langsung SELALU ikut disertakan. Kalau `up3_id` atau
- * `uiw_id` belum terisi — misalnya migrasi belum dijalankan — akun tetap
- * memegang akses lamanya alih-alih kehilangan segalanya.
+ * Untuk peran pengelola, cakupan dari HIERARKI bersifat menentukan — baris
+ * `user_ulp` yang menempel di akun itu TIDAK ikut menambah. Kalau digabung,
+ * batas UP3 jadi tidak berlaku: akun 'up3' yang kebetulan punya assignment
+ * warisan ke ULP UP3 lain akan tetap melihatnya, dan justru itu yang hendak
+ * dicegah. `user_ulp` adalah mekanisme penugasan untuk OPERATOR.
+ *
+ * Kalau kolom hierarkinya belum terisi — migrasi belum jalan, atau akun baru
+ * belum di-set UP3-nya — barulah jatuh ke ULP yang di-assign, supaya akun
+ * tidak kehilangan segalanya secara mendadak.
  *
  * Ini melebarkan cakupan BACA saja. Jalur tulis tetap lewat requireUlp().
  */
@@ -96,7 +102,7 @@ export async function ulpIdsTerlihat(profile: UserProfile): Promise<string[]> {
 
   if (profile.role === 'super_admin') {
     const { data } = await admin.from('ulp').select('id')
-    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+    return (data ?? []).map((u) => u.id as string)
   }
 
   if (profile.role === 'uiw' && profile.uiw_id) {
@@ -105,12 +111,12 @@ export async function ulpIdsTerlihat(profile: UserProfile): Promise<string[]> {
     const up3Ids = (up3s ?? []).map((u) => u.id as string)
     if (up3Ids.length === 0) return milikSendiri
     const { data } = await admin.from('ulp').select('id').in('up3_id', up3Ids)
-    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+    return (data ?? []).map((u) => u.id as string)
   }
 
   if ((profile.role === 'up3' || profile.role === 'admin') && profile.up3_id) {
     const { data } = await admin.from('ulp').select('id').eq('up3_id', profile.up3_id)
-    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+    return (data ?? []).map((u) => u.id as string)
   }
 
   return milikSendiri
