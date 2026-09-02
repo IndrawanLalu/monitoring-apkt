@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { passwordBaruSchema } from '@/lib/validations/auth'
 import { peranPengelola } from '@/lib/otorisasi'
 import { BOLEH_MEMBUAT } from '@/constants'
+import { catatAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -195,6 +196,12 @@ export async function POST(req: Request) {
       await admin.auth.admin.deleteUser(userId)
       return NextResponse.json({ error: uuError.message }, { status: 500 })
     }
+
+    await catatAudit({
+      aktorId: profile.id, aktorNama: profile.nama,
+      aksi: 'buat_user', sasaranId: userId, sasaranNama: nama,
+      keterangan: `peran ${peranBaru}`,
+    })
 
     return NextResponse.json({
       data: {

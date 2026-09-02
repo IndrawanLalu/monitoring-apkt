@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Input, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
 import { useKonfirmasi } from '@/components/ui/konfirmasi'
 
@@ -10,14 +10,19 @@ interface UlpItem {
   id: string
   nama: string
   kode: string
+  up3_id?: string | null
   created_at: string
 }
 
+interface Up3Item { id: string; nama: string; kode: string }
+
 interface Props {
+  /** Peran akun yang login — super_admin & uiw memilih UP3 induk sendiri. */
+  peranSaya: string
   onToast: (text: string, type?: 'success' | 'error' | 'info') => void
 }
 
-export function UlpsTab({ onToast }: Props) {
+export function UlpsTab({ peranSaya, onToast }: Props) {
   const konfirmasi = useKonfirmasi()
   const [ulps, setUlps] = useState<UlpItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,6 +33,20 @@ export function UlpsTab({ onToast }: Props) {
 
   const [nama, setNama] = useState('')
   const [kode, setKode] = useState('')
+  const [up3Id, setUp3Id] = useState('')
+  const [daftarUp3, setDaftarUp3] = useState<Up3Item[]>([])
+
+  // Akun 'up3' selalu membuat ULP di UP3-nya sendiri, jadi tidak perlu memilih.
+  const pilihUp3 = peranSaya === 'super_admin' || peranSaya === 'uiw'
+
+  useEffect(() => {
+    if (!pilihUp3) return
+    let batal = false
+    fetch('/api/admin/up3').then(r => r.json()).then(j => {
+      if (!batal) setDaftarUp3(j.data ?? [])
+    }).catch(() => null)
+    return () => { batal = true }
+  }, [pilihUp3])
 
   const fetchUlps = useCallback(async () => {
     setLoading(true)
@@ -49,6 +68,7 @@ export function UlpsTab({ onToast }: Props) {
     setSelectedUlp(null)
     setNama('')
     setKode('')
+    setUp3Id('')
     setError(null)
   }
 
@@ -57,6 +77,7 @@ export function UlpsTab({ onToast }: Props) {
     setSelectedUlp(ulp)
     setNama(ulp.nama)
     setKode(ulp.kode)
+    setUp3Id(ulp.up3_id ?? '')
     setError(null)
   }
 
@@ -66,6 +87,7 @@ export function UlpsTab({ onToast }: Props) {
 
     if (!nama.trim()) { setError('Nama ULP wajib diisi'); return }
     if (!kode.trim()) { setError('Kode ULP wajib diisi'); return }
+    if (pilihUp3 && modalMode === 'add' && !up3Id) { setError('Pilih UP3 induk untuk ULP ini'); return }
 
     setSubmitting(true)
     try {
@@ -73,7 +95,7 @@ export function UlpsTab({ onToast }: Props) {
         const res = await fetch('/api/admin/ulps', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: nama.trim(), kode: kode.trim() }),
+          body: JSON.stringify({ nama: nama.trim(), kode: kode.trim(), up3_id: up3Id || undefined }),
         })
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal membuat ULP')
@@ -175,6 +197,24 @@ export function UlpsTab({ onToast }: Props) {
             onChange={e => setKode(e.target.value.toUpperCase())}
             hint="Kode singkat unik, contoh: AMP, TJG, MTR"
           />
+
+          {/* UP3 induk hanya perlu dipilih oleh super_admin dan admin UIW.
+              Akun 'up3' selalu membuat ULP di UP3-nya sendiri, jadi bidang ini
+              tidak ditampilkan dan diabaikan server kalau tetap dikirim. */}
+          {pilihUp3 && (
+            <Select
+              label="UP3 Induk *"
+              value={up3Id}
+              onChange={e => setUp3Id(e.target.value)}
+              disabled={modalMode === 'edit'}
+              hint={modalMode === 'edit'
+                ? 'UP3 induk tidak dapat dipindah dari sini'
+                : 'ULP ini akan bernaung di bawah UP3 tersebut'}
+            >
+              <option value="">— pilih UP3 —</option>
+              {daftarUp3.map(u => <option key={u.id} value={u.id}>{u.nama} ({u.kode})</option>)}
+            </Select>
+          )}
 
           {error && (
             <div style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: 'rgba(228,0,43,0.1)', border: '1px solid rgba(228,0,43,0.25)' }}>

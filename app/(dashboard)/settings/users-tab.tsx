@@ -59,6 +59,8 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
   const [uiwId, setUiwId] = useState('')
   const [daftarUp3, setDaftarUp3] = useState<Wilayah[]>([])
   const [daftarUiw, setDaftarUiw] = useState<Wilayah[]>([])
+  // Password sementara hasil reset — ditampilkan SEKALI, tidak disimpan.
+  const [pwSementara, setPwSementara] = useState<{ nama: string; pw: string } | null>(null)
 
   // Peran apa saja yang boleh saya buat. Sumbernya sama dengan yang dipakai
   // server, jadi UI tidak pernah menawarkan pilihan yang nanti ditolak API.
@@ -129,6 +131,25 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
     setSelectedUlps(prev =>
       prev.includes(id) ? prev.filter(u => u !== id) : [...prev, id]
     )
+  }
+
+  async function handleReset(user: UserCc) {
+    const ok = await konfirmasi({
+      judul: 'Reset password akun ini?',
+      pesan: 'Password lama langsung tidak berlaku. Password sementara akan ditampilkan sekali saja — catat sebelum menutup dialog.',
+      rincian: [
+        { label: 'Nama', nilai: user.nama },
+        { label: 'Email', nilai: user.email },
+      ],
+      labelAksi: 'Reset password',
+      aksi: async () => {
+        const res = await fetch(`/api/admin/users/${user.id}/reset-password`, { method: 'POST' })
+        const json = await res.json()
+        if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal mereset password')
+        setPwSementara({ nama: user.nama, pw: json.password })
+      },
+    })
+    if (!ok) return
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -279,6 +300,11 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
 
               <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                 <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={() => openEdit(user)}>Edit</Button>
+                {!user.diriSendiri && (
+                  <Button variant="secondary" size="sm" style={{ flex: 1 }} onClick={() => handleReset(user)}>
+                    Reset PW
+                  </Button>
+                )}
                 {user.diriSendiri ? (
                   <span style={{
                     flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -294,6 +320,39 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
           ))}
         </div>
       )}
+
+      {/* Password sementara — hanya muncul sekali setelah reset berhasil */}
+      <Modal
+        open={pwSementara !== null}
+        onClose={() => setPwSementara(null)}
+        title="Password Sementara"
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+            Password untuk <b style={{ color: 'var(--text-primary)' }}>{pwSementara?.nama}</b> sudah
+            diganti. Catat sekarang — password ini tidak disimpan dan tidak bisa dilihat lagi
+            setelah dialog ditutup.
+          </p>
+
+          <div style={{
+            padding: '14px 16px', borderRadius: 10, textAlign: 'center',
+            backgroundColor: 'var(--bg-surface-2)', border: '1.5px dashed var(--border-strong)',
+            fontFamily: 'monospace', fontSize: 22, fontWeight: 800,
+            letterSpacing: '0.08em', color: 'var(--text-primary)', userSelect: 'all',
+          }}>
+            {pwSementara?.pw}
+          </div>
+
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.55 }}>
+            Sampaikan langsung ke pemilik akun, dan minta dia menggantinya setelah berhasil masuk.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button variant="primary" onClick={() => setPwSementara(null)}>Sudah dicatat</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal Add / Edit */}
       <Modal open={!!modalMode} onClose={() => setModalMode(null)} title={modalMode === 'add' ? 'Buat User CC Baru' : 'Edit User CC'}>

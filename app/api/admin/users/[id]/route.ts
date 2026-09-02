@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { passwordBaruSchema } from '@/lib/validations/auth'
 import { peranPengelola } from '@/lib/otorisasi'
 import { BOLEH_MEMBUAT } from '@/constants'
+import { catatAudit } from '@/lib/audit'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,6 +64,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: 'Hanya Super Admin yang dapat memberikan peran UIW' }, { status: 403 })
       }
 
+      const { data: sebelum } = await admin
+        .from('profiles').select('nama, role').eq('id', id).maybeSingle()
+
       const { error: eRole } = await admin
         .from('profiles')
         .update({
@@ -75,6 +79,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         console.error('[user PATCH role]', eRole)
         return NextResponse.json({ error: 'Gagal mengubah peran' }, { status: 500 })
       }
+
+      await catatAudit({
+        aktorId: profile.id, aktorNama: profile.nama,
+        aksi: 'ubah_peran', sasaranId: id,
+        sasaranNama: (sebelum?.nama as string) ?? null,
+        keterangan: `${sebelum?.role ?? '?'} → ${role}`,
+      })
     }
 
     // 1. Update password di Supabase Auth jika ada
@@ -152,6 +163,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     return NextResponse.json({ error: 'User tidak ditemukan atau di luar wewenang Anda' }, { status: 403 })
   }
 
+  // Diambil sebelum dihapus — sesudahnya namanya sudah hilang dari database
+  // dan jejak auditnya jadi tidak bisa dibaca orang.
+  const { data: sasaran } = await admin
+    .from('profiles').select('nama, role').eq('id', id).maybeSingle()
+
   try {
     // Hapus dari user_ulp dan profiles terlebih dahulu agar aman
     await admin.from('user_ulp').delete().eq('user_id', id)
@@ -160,8 +176,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // Hapus dari Supabase Auth
     const { error } = await admin.auth.admin.deleteUser(id)
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error('[user DELETE]', error)
+      return NextResponse.json({ error: 'Gagal menghapus akun' }, { status: 500 })
     }
+
+    await catatAudit({
+      aktorId: profile.id, aktorNama: profile.nama,
+      aksi: 'hapus_user', sasaranId: id,
+      sasaranNama: (sasaran?.nama as string) ?? null,
+      keterangan: sasaran?.role ? `peran ${sasaran.role}` : null,
+    })
 
     return NextResponse.json({ data: { success: true } })
   } catch (err: any) {

@@ -92,7 +92,7 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
     { key: "petugas",  label: "👤 Petugas"           },
     { key: "callback", label: "📞 Template Callback" },
     ...(bolehKelola ? [{ key: "users" as Tab, label: "👥 Manajemen User" }] : []),
-    ...(bolehKelola && profile.up3Id ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
+    ...(bolehKelola ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
     // UP3 dikelola super_admin dan uiw; UIW hanya super_admin.
     ...(["super_admin", "uiw"].includes(profile.role) ? [{ key: "up3" as Tab, label: "🏭 Kelola UP3" }] : []),
     ...(profile.role === "super_admin" ? [{ key: "uiw" as Tab, label: "🌐 Kelola UIW" }] : []),
@@ -214,7 +214,7 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
         )}
 
         {tab === "ulps" && (
-          <UlpsTab onToast={showToast} />
+          <UlpsTab peranSaya={profile.role} onToast={showToast} />
         )}
         {tab === "import" && (
           <ImportTab
