@@ -38,12 +38,44 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   if (!profile) return null
 
-  const ulps: UlpInfo[] = (userUlps ?? [])
-    .map((row) => row.ulp as unknown as UlpInfo)
-    .filter(Boolean)
-
   const up3Id = (profile as any).up3_id ?? null
   const uiwId = (profile as any).uiw_id ?? null
+  const role = profile.role as string
+
+  // `ulps` = ULP yang boleh diakses akun ini, DITENTUKAN OLEH PERANNYA.
+  //
+  // Diselesaikan di sini, bukan di tiap halaman, karena hampir semua halaman
+  // membacanya. Sebelumnya isinya selalu dari user_ulp saja — akibatnya
+  // super_admin, yang memang tidak punya baris user_ulp, mendapat daftar
+  // kosong dan Settings, dashboard, piket, serta callback semuanya gagal
+  // terbuka meski login berhasil.
+  //
+  // Untuk peran pengelola, hierarki bersifat menentukan: baris user_ulp
+  // warisan tidak ikut menambah, supaya batas UP3 tidak bisa ditembus.
+  // user_ulp tetap jadi mekanisme penugasan untuk operator.
+  const kolomUlp = 'id, nama, kode, wa_grup_id'
+  let ulps: UlpInfo[] = []
+
+  if (role === 'super_admin') {
+    const { data } = await admin.from('ulp').select(kolomUlp).order('nama')
+    ulps = (data ?? []) as unknown as UlpInfo[]
+  } else if (role === 'uiw' && uiwId) {
+    const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', uiwId)
+    const up3Ids = (up3s ?? []).map((u) => u.id as string)
+    if (up3Ids.length > 0) {
+      const { data } = await admin.from('ulp').select(kolomUlp).in('up3_id', up3Ids).order('nama')
+      ulps = (data ?? []) as unknown as UlpInfo[]
+    }
+  } else if ((role === 'up3' || role === 'admin') && up3Id) {
+    const { data } = await admin.from('ulp').select(kolomUlp).eq('up3_id', up3Id).order('nama')
+    ulps = (data ?? []) as unknown as UlpInfo[]
+  }
+
+  // Operator, atau peran pengelola yang kolom hierarkinya belum terisi:
+  // jatuh ke ULP yang di-assign, supaya tidak kehilangan akses mendadak.
+  if (ulps.length === 0) {
+    ulps = (userUlps ?? []).map((row) => row.ulp as unknown as UlpInfo).filter(Boolean)
+  }
 
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value

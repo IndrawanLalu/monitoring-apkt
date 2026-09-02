@@ -77,49 +77,15 @@ export async function requireLaporan(
 }
 
 /**
- * Semua ULP yang boleh dilihat sebuah profil, menurut tingkat perannya.
+ * Semua ULP yang boleh dilihat sebuah profil.
  *
- *   super_admin  seluruh ULP di sistem
- *   uiw          semua ULP di bawah UP3 yang bernaung di wilayahnya
- *   up3 / admin  semua ULP di UP3-nya
- *   operator/cc  hanya ULP yang di-assign padanya
- *
- * Untuk peran pengelola, cakupan dari HIERARKI bersifat menentukan — baris
- * `user_ulp` yang menempel di akun itu TIDAK ikut menambah. Kalau digabung,
- * batas UP3 jadi tidak berlaku: akun 'up3' yang kebetulan punya assignment
- * warisan ke ULP UP3 lain akan tetap melihatnya, dan justru itu yang hendak
- * dicegah. `user_ulp` adalah mekanisme penugasan untuk OPERATOR.
- *
- * Kalau kolom hierarkinya belum terisi — migrasi belum jalan, atau akun baru
- * belum di-set UP3-nya — barulah jatuh ke ULP yang di-assign, supaya akun
- * tidak kehilangan segalanya secara mendadak.
- *
- * Ini melebarkan cakupan BACA saja. Jalur tulis tetap lewat requireUlp().
+ * Cakupannya sudah diselesaikan getProfile() menurut peran — super_admin
+ * seluruh sistem, uiw se-wilayah, up3 se-UP3, operator sesuai assignment.
+ * Fungsi ini sengaja tinggal membaca hasilnya, bukan menghitung ulang:
+ * dua tempat yang menghitung cakupan sendiri-sendiri pasti akan menyimpang.
  */
 export async function ulpIdsTerlihat(profile: UserProfile): Promise<string[]> {
-  const milikSendiri = profile.ulps.map((u) => u.id)
-  const admin = createAdminClient()
-
-  if (profile.role === 'super_admin') {
-    const { data } = await admin.from('ulp').select('id')
-    return (data ?? []).map((u) => u.id as string)
-  }
-
-  if (profile.role === 'uiw' && profile.uiw_id) {
-    // ULP → UP3 → UIW. Dua langkah, karena ulp tidak menyimpan uiw_id.
-    const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', profile.uiw_id)
-    const up3Ids = (up3s ?? []).map((u) => u.id as string)
-    if (up3Ids.length === 0) return milikSendiri
-    const { data } = await admin.from('ulp').select('id').in('up3_id', up3Ids)
-    return (data ?? []).map((u) => u.id as string)
-  }
-
-  if ((profile.role === 'up3' || profile.role === 'admin') && profile.up3_id) {
-    const { data } = await admin.from('ulp').select('id').eq('up3_id', profile.up3_id)
-    return (data ?? []).map((u) => u.id as string)
-  }
-
-  return milikSendiri
+  return profile.ulps.map((u) => u.id)
 }
 
 /** Apakah peran ini boleh mengelola user, ULP, dan pengaturan. */
