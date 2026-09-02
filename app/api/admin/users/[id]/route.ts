@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { passwordBaruSchema } from '@/lib/validations/auth'
 import { peranPengelola } from '@/lib/otorisasi'
+import { BOLEH_MEMBUAT } from '@/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   try {
     const body = await req.json()
-    const { nama, password, ulp_ids } = body
+    const { nama, password, ulp_ids, role, up3_id, uiw_id } = body
+
+    // ── Ubah peran ──
+    // Dibatasi daftar yang sama dengan pembuatan akun, supaya tidak ada
+    // jalan memutar: membuat operator lalu menaikkannya jadi uiw.
+    if (typeof role === 'string' && role) {
+      const bolehDibuat = BOLEH_MEMBUAT[profile.role] ?? []
+      if (!bolehDibuat.includes(role)) {
+        return NextResponse.json(
+          { error: `Anda tidak berwenang memberikan peran "${role}".` },
+          { status: 403 },
+        )
+      }
+      if (id === profile.id) {
+        return NextResponse.json(
+          { error: 'Anda tidak bisa mengubah peran akun Anda sendiri.' },
+          { status: 400 },
+        )
+      }
+      if (role === 'up3' && !up3_id) {
+        return NextResponse.json({ error: 'Akun Admin UP3 wajib dipasangkan ke satu UP3' }, { status: 400 })
+      }
+      if (role === 'uiw' && profile.role !== 'super_admin') {
+        return NextResponse.json({ error: 'Hanya Super Admin yang dapat memberikan peran UIW' }, { status: 403 })
+      }
+
+      const { error: eRole } = await admin
+        .from('profiles')
+        .update({
+          role,
+          up3_id: role === 'up3' ? up3_id : null,
+          uiw_id: role === 'uiw' ? uiw_id : null,
+        })
+        .eq('id', id)
+      if (eRole) {
+        console.error('[user PATCH role]', eRole)
+        return NextResponse.json({ error: 'Gagal mengubah peran' }, { status: 500 })
+      }
+    }
 
     // 1. Update password di Supabase Auth jika ada
     if (password && password.trim().length > 0) {
