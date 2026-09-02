@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { peranPengelola } from '@/lib/otorisasi'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ async function verifyUlpAccess(admin: ReturnType<typeof import('@/lib/supabase/a
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
   if (!profile.up3_id) {
@@ -54,7 +55,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
   if (!profile.up3_id) {

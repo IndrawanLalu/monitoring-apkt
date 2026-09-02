@@ -81,14 +81,18 @@ export function SettingsClient({ ulpsData, profile, waSession: initialWa }: Prop
 
   const toastColor = toast?.type === "success" ? "#1DB954" : toast?.type === "error" ? "#E4002B" : "var(--accent)";
 
+  // Peran pengelola: super_admin, uiw, up3 — plus 'admin' lama supaya akun
+  // yang belum termigrasi tidak kehilangan menu pengaturannya.
+  const bolehKelola = ["super_admin", "uiw", "up3", "admin"].includes(profile.role)
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "wa",       label: "📱 WhatsApp"         },
     { key: "regu",     label: "👷 Regu"              },
     { key: "petugas",  label: "👤 Petugas"           },
     { key: "callback", label: "📞 Template Callback" },
-    ...(profile.role === "admin" ? [{ key: "users" as Tab, label: "👥 Manajemen User CC" }] : []),
-    ...(profile.role === "admin" && profile.up3Id ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
-    ...(profile.role === "admin" ? [{ key: "import" as Tab, label: "📥 Import Petugas" }] : []),
+    ...(bolehKelola ? [{ key: "users" as Tab, label: "👥 Manajemen User" }] : []),
+    ...(bolehKelola && profile.up3Id ? [{ key: "ulps" as Tab, label: "🏢 Kelola ULP" }] : []),
+    ...(bolehKelola ? [{ key: "import" as Tab, label: "📥 Import Petugas" }] : []),
   ];
 
   return (

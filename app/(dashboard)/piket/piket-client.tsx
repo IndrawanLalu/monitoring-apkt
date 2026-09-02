@@ -85,7 +85,9 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
   const [error, setError] = useState<string | null>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  const canManage = role === 'admin' || role === 'supervisor' || role === 'cc'
+  // Semua peran operasional boleh mengelola piket. Nilai lama tetap disebut
+  // agar akun yang belum termigrasi tidak kehilangan akses.
+  const canManage = ['super_admin', 'uiw', 'up3', 'operator', 'admin', 'supervisor', 'cc'].includes(role)
 
   const todayDate = new Date(Date.now() + 8 * 60 * 60 * 1000)
   const today = todayDate.toISOString().split('T')[0]

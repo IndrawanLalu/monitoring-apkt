@@ -1,3 +1,26 @@
+-- ⚠ BERKAS INI TIDAK LAGI MENGGAMBARKAN DATABASE YANG BERJALAN.
+--
+-- Terverifikasi berbeda di empat titik: tabel user_ulp tidak ada di sini,
+-- profiles.ulp_id sudah dihapus dari database, laporan.regu_id nyatanya
+-- nullable, dan beberapa index hanya ada di database.
+--
+-- Urutan berkas yang benar untuk membangun ulang:
+--   1. schema.sql (ini)          — tabel dasar
+--   2. survey_laporan.sql
+--   3. migration_up3.sql
+--   4. peran_1_enum.sql          — WAJIB dijalankan sendiri
+--   5. peran_2_struktur.sql      — UIW, peran baru, RLS yang berlaku
+--   6. index_skala.sql + index_skala_2_bersihkan.sql
+--   7. rekap_outage.sql
+--
+-- Bagian RLS di bawah SUDAH DIGANTI oleh peran_2_struktur.sql. Jangan
+-- dijalankan sendirian — policy di sini memakai get_my_ulp_id() yang
+-- membaca profiles.ulp_id, kolom yang sudah tidak ada.
+--
+-- Cara menyehatkannya sekali jalan: `pg_dump --schema-only` dari database
+-- yang berjalan, lalu simpan hasilnya menggantikan berkas ini.
+-- ============================================================
+
 -- ============================================================
 -- MONITORING APKT — Database Schema (Idempotent / Safe Migration)
 -- Aman dijalankan di database yang sudah ada sebagian tabelnya
@@ -149,11 +172,29 @@ create table if not exists wa_session (
 
 create table if not exists profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
-  ulp_id      uuid not null references ulp(id) on delete cascade,
   nama        text not null,
   role        user_role not null default 'cc',
   created_at  timestamptz not null default now()
+  -- up3_id ditambahkan migration_up3.sql, uiw_id oleh peran_2_struktur.sql.
+  -- ulp_id sudah DIHAPUS — cakupan ULP kini lewat tabel user_ulp di bawah.
 );
+
+-- Cakupan ULP per pengguna. Tabel ini sebelumnya hanya ada di database dan
+-- tidak pernah tercatat di repo, padahal seluruh otorisasi multi-ULP
+-- bersandar padanya.
+create table if not exists user_ulp (
+  id       uuid primary key default uuid_generate_v4(),
+  user_id  uuid not null references auth.users(id) on delete cascade,
+  ulp_id   uuid not null references ulp(id) on delete cascade,
+  unique(user_id, ulp_id)
+);
+create index if not exists idx_user_ulp_user on user_ulp(user_id);
+create index if not exists idx_user_ulp_ulp  on user_ulp(ulp_id);
+
+alter table user_ulp enable row level security;
+drop policy if exists "user_ulp_select" on user_ulp;
+create policy "user_ulp_select" on user_ulp
+  for select using (user_id = auth.uid());
 
 -- ─── INDEXES ─────────────────────────────────────────────────
 

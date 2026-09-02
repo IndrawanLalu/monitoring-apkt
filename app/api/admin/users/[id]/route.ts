@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { passwordBaruSchema } from '@/lib/validations/auth'
+import { peranPengelola } from '@/lib/otorisasi'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ async function verifyUserAdminAccess(adminClient: any, targetUserId: string, adm
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
@@ -89,7 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 

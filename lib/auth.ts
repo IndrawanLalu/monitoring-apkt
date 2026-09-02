@@ -15,6 +15,7 @@ export interface UserProfile {
   nama: string
   role: string
   up3_id: string | null
+  uiw_id: string | null
   ulps: UlpInfo[]
   activeUlp: UlpInfo | null
 }
@@ -28,7 +29,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
 
   // Satu query profiles (nama, role, up3_id) — kolom up3_id sudah ada pasca-migration.
   const [{ data: profile }, { data: userUlps }] = await Promise.all([
-    admin.from('profiles').select('nama, role, up3_id').eq('id', user.id).single(),
+    admin.from('profiles').select('nama, role, up3_id, uiw_id').eq('id', user.id).single(),
     admin
       .from('user_ulp')
       .select('ulp:ulp(id, nama, kode, wa_grup_id)')
@@ -42,6 +43,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     .filter(Boolean)
 
   const up3Id = (profile as any).up3_id ?? null
+  const uiwId = (profile as any).uiw_id ?? null
 
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value
@@ -52,6 +54,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     nama: profile.nama,
     role: profile.role,
     up3_id: up3Id,
+    uiw_id: uiwId,
     ulps,
     activeUlp,
   }

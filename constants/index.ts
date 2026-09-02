@@ -32,11 +32,54 @@ export const STATUS_COLOR: Record<StatusLaporan, { bg: string; text: string; css
   selesai: { bg: '#1DB954', text: '#FFFFFF', css: 'status-selesai' },
 }
 
+/**
+ * Peran pengguna, mencerminkan hierarki PLN: UIW → UP3 → ULP.
+ *
+ *   SUPER_ADMIN  seluruh sistem; mengelola UIW, UP3, dan semua user
+ *   UIW          semua UP3 di wilayahnya
+ *   UP3          semua ULP di UP3-nya
+ *   OPERATOR     hanya ULP yang di-assign padanya
+ *
+ * ADMIN, CC, dan SUPERVISOR adalah nilai LAMA. Setelah migrasi tidak ada
+ * baris yang memakainya, tapi tetap dikenali kode supaya akun yang belum
+ * termigrasi — atau database yang belum dijalankan migrasinya — tidak
+ * kehilangan akses secara mendadak.
+ */
 export const ROLE = {
+  SUPER_ADMIN: 'super_admin',
+  UIW: 'uiw',
+  UP3: 'up3',
+  OPERATOR: 'operator',
+  // ── lama, jangan dipakai untuk akun baru ──
   ADMIN: 'admin',
   SUPERVISOR: 'supervisor',
   CC: 'cc',
 } as const
+
+/** Peran yang boleh mengelola user, ULP, dan pengaturan. */
+export const PERAN_PENGELOLA = ['super_admin', 'uiw', 'up3', 'admin'] as const
+
+/** Peran yang cakupannya seluruh sistem. */
+export const PERAN_SUPER = ['super_admin'] as const
+
+/** Label peran untuk ditampilkan ke pengguna. */
+export const LABEL_ROLE: Record<string, string> = {
+  super_admin: 'Super Admin',
+  uiw: 'Admin UIW',
+  up3: 'Admin UP3',
+  operator: 'Operator',
+  admin: 'Admin UP3 (lama)',
+  cc: 'Operator (lama)',
+  supervisor: 'Supervisor (lama)',
+}
+
+/** Peran mana yang boleh dibuat oleh peran tertentu. Mencegah eskalasi. */
+export const BOLEH_MEMBUAT: Record<string, string[]> = {
+  super_admin: ['uiw', 'up3', 'operator'],
+  uiw:         ['up3', 'operator'],
+  up3:         ['operator'],
+  admin:       ['operator'], // peran lama, disamakan dengan up3
+}
 
 export type Role = (typeof ROLE)[keyof typeof ROLE]
 

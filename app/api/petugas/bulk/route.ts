@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
+import { requireUlp, reguMilikUlp, peranPengelola } from '@/lib/otorisasi'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   const izin = await requireUlp(ulp_id)
   if (izin.response) return izin.response
-  if (izin.profile.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!peranPengelola(izin.profile.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   if (regu_id && !(await reguMilikUlp(regu_id, ulp_id))) {
     return NextResponse.json({ error: 'Regu tidak ada di ULP tersebut' }, { status: 400 })

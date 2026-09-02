@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile, type UserProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { PERAN_PENGELOLA } from '@/constants'
 
 /**
  * Otorisasi tingkat-resource untuk route API.
@@ -38,16 +39,12 @@ export async function requireUlp(ulpId: string | null | undefined): Promise<Hasi
     return { profile, data: { ulpId } }
   }
 
-  // Admin boleh menjangkau ULP lain selama masih satu UP3 dengannya.
-  if (profile.role === 'admin' && profile.up3_id) {
-    const admin = createAdminClient()
-    const { data } = await admin
-      .from('ulp')
-      .select('id')
-      .eq('id', ulpId)
-      .eq('up3_id', profile.up3_id)
-      .maybeSingle()
-    if (data) return { profile, data: { ulpId } }
+  // Peran pengelola boleh menjangkau ULP di luar assignment-nya, sebatas
+  // tingkatnya masing-masing. Diperiksa terhadap daftar cakupan yang sama
+  // dengan yang dipakai halaman baca, supaya tidak ada dua sumber kebenaran.
+  if (peranPengelola(profile.role)) {
+    const terlihat = await ulpIdsTerlihat(profile)
+    if (terlihat.includes(ulpId)) return { profile, data: { ulpId } }
   }
 
   return tolak('ULP tidak ditemukan atau di luar wewenang Anda', 403)
@@ -80,27 +77,48 @@ export async function requireLaporan(
 }
 
 /**
- * Semua ULP yang boleh dilihat sebuah profil.
+ * Semua ULP yang boleh dilihat sebuah profil, menurut tingkat perannya.
  *
- * Operator biasa: hanya ULP yang di-assign ke dirinya.
- * Admin ber-UP3: SELURUH ULP di UP3-nya — supaya dashboard manajemen bisa
- * membandingkan antar-ULP, bukan hanya yang kebetulan di-assign.
+ *   super_admin  seluruh ULP di sistem
+ *   uiw          semua ULP di bawah UP3 yang bernaung di wilayahnya
+ *   up3 / admin  semua ULP di UP3-nya
+ *   operator/cc  hanya ULP yang di-assign padanya
  *
- * Ini melebarkan cakupan BACA saja. Jalur tulis tetap lewat requireUlp(),
- * yang memang sudah mengizinkan admin menjangkau ULP satu UP3.
+ * ULP yang di-assign langsung SELALU ikut disertakan. Kalau `up3_id` atau
+ * `uiw_id` belum terisi — misalnya migrasi belum dijalankan — akun tetap
+ * memegang akses lamanya alih-alih kehilangan segalanya.
+ *
+ * Ini melebarkan cakupan BACA saja. Jalur tulis tetap lewat requireUlp().
  */
 export async function ulpIdsTerlihat(profile: UserProfile): Promise<string[]> {
   const milikSendiri = profile.ulps.map((u) => u.id)
-
-  if (profile.role !== 'admin' || !profile.up3_id) return milikSendiri
-
   const admin = createAdminClient()
-  const { data } = await admin.from('ulp').select('id').eq('up3_id', profile.up3_id)
-  const seUp3 = (data ?? []).map((u) => u.id as string)
 
-  // Gabung: kalau kolom up3_id belum terisi untuk sebagian ULP, akses lama
-  // tetap dipertahankan alih-alih hilang.
-  return Array.from(new Set([...milikSendiri, ...seUp3]))
+  if (profile.role === 'super_admin') {
+    const { data } = await admin.from('ulp').select('id')
+    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+  }
+
+  if (profile.role === 'uiw' && profile.uiw_id) {
+    // ULP → UP3 → UIW. Dua langkah, karena ulp tidak menyimpan uiw_id.
+    const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', profile.uiw_id)
+    const up3Ids = (up3s ?? []).map((u) => u.id as string)
+    if (up3Ids.length === 0) return milikSendiri
+    const { data } = await admin.from('ulp').select('id').in('up3_id', up3Ids)
+    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+  }
+
+  if ((profile.role === 'up3' || profile.role === 'admin') && profile.up3_id) {
+    const { data } = await admin.from('ulp').select('id').eq('up3_id', profile.up3_id)
+    return Array.from(new Set([...milikSendiri, ...(data ?? []).map((u) => u.id as string)]))
+  }
+
+  return milikSendiri
+}
+
+/** Apakah peran ini boleh mengelola user, ULP, dan pengaturan. */
+export function peranPengelola(role: string): boolean {
+  return (PERAN_PENGELOLA as readonly string[]).includes(role)
 }
 
 /** Pastikan `reguId` benar-benar milik `ulpId` — mencegah pasangan regu/ULP silang. */
