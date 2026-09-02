@@ -134,7 +134,11 @@ echo ""
 
 cek() { # nama, url, harapan, [flag curl tambahan]
   local kode
-  kode=$(curl -s ${4:-} -o /dev/null -m 15 -w "%{http_code}" "$2" 2>/dev/null || echo "000")
+  # Jangan pakai `|| echo "000"`: saat koneksi ditolak, curl SUDAH mencetak
+  # "000" lewat -w lalu keluar non-nol, sehingga fallback ikut jalan dan
+  # hasilnya jadi "000000" — terbaca sebagai gagal padahal justru berhasil.
+  kode=$(curl -s ${4:-} -o /dev/null -m 15 -w "%{http_code}" "$2" 2>/dev/null)
+  kode=${kode:-000}
   if [ "$kode" = "$3" ]; then
     printf "  ${GREEN}✔${NC} %-24s %s\n" "$1" "$kode"
   else
