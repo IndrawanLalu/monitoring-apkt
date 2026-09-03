@@ -5,8 +5,34 @@ import { peranPengelola } from '@/lib/otorisasi'
 
 export const dynamic = 'force-dynamic'
 
-async function verifyUlpAccess(admin: ReturnType<typeof import('@/lib/supabase/admin').createAdminClient>, ulpId: string, up3Id: string) {
-  const { data } = await admin.from('ulp').select('id').eq('id', ulpId).eq('up3_id', up3Id).maybeSingle()
+/**
+ * Apakah ULP ini berada dalam wewenang si pemanggil.
+ *
+ * Versi lama membandingkan langsung dengan profile.up3_id, sehingga
+ * super_admin — yang memang tidak punya UP3 — selalu ditolak dengan
+ * "Akun admin belum terhubung ke UP3" bahkan untuk sekadar mengedit nama ULP.
+ */
+async function bolehSentuhUlp(
+  admin: ReturnType<typeof createAdminClient>,
+  profile: { role: string; up3_id: string | null; uiw_id: string | null },
+  ulpId: string,
+): Promise<boolean> {
+  if (profile.role === 'super_admin') {
+    const { data } = await admin.from('ulp').select('id').eq('id', ulpId).maybeSingle()
+    return !!data
+  }
+
+  if (profile.role === 'uiw' && profile.uiw_id) {
+    const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', profile.uiw_id)
+    const ids = (up3s ?? []).map((u) => u.id as string)
+    if (ids.length === 0) return false
+    const { data } = await admin.from('ulp').select('id').eq('id', ulpId).in('up3_id', ids).maybeSingle()
+    return !!data
+  }
+
+  if (!profile.up3_id) return false
+  const { data } = await admin
+    .from('ulp').select('id').eq('id', ulpId).eq('up3_id', profile.up3_id).maybeSingle()
   return !!data
 }
 
@@ -15,15 +41,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  if (!profile.up3_id) {
-    return NextResponse.json({ error: 'Akun admin belum terhubung ke UP3' }, { status: 400 })
-  }
-
   const { id } = await params
   const admin = createAdminClient()
 
-  const hasAccess = await verifyUlpAccess(admin, id, profile.up3_id)
-  if (!hasAccess) {
+  if (!(await bolehSentuhUlp(admin, profile, id))) {
     return NextResponse.json({ error: 'ULP tidak ditemukan atau di luar wewenang Anda' }, { status: 403 })
   }
 
@@ -58,15 +79,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!profile || !peranPengelola(profile.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
-  if (!profile.up3_id) {
-    return NextResponse.json({ error: 'Akun admin belum terhubung ke UP3' }, { status: 400 })
-  }
-
   const { id } = await params
   const admin = createAdminClient()
 
-  const hasAccess = await verifyUlpAccess(admin, id, profile.up3_id)
-  if (!hasAccess) {
+  if (!(await bolehSentuhUlp(admin, profile, id))) {
     return NextResponse.json({ error: 'ULP tidak ditemukan atau di luar wewenang Anda' }, { status: 403 })
   }
 
