@@ -50,17 +50,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   try {
     const body = await req.json()
-    const { nama, kode } = body
+    const { nama, kode, up3_id } = body
 
     if (!nama?.trim() || !kode?.trim()) {
       return NextResponse.json({ error: 'Nama dan kode ULP wajib diisi' }, { status: 400 })
     }
 
+    const ubah: Record<string, string> = {
+      nama: nama.trim(),
+      kode: kode.trim().toUpperCase(),
+    }
+
+    // Memindahkan ULP ke UP3 lain. Wewenang diperiksa di DUA sisi: ULP asalnya
+    // sudah lewat bolehSentuhUlp di atas, dan UP3 tujuannya diperiksa di sini —
+    // tanpa itu, admin UIW bisa memindahkan ULP ke wilayah lain.
+    if (up3_id && up3_id !== '') {
+      if (profile.role === 'up3' || profile.role === 'admin') {
+        return NextResponse.json(
+          { error: 'Anda tidak berwenang memindahkan ULP ke UP3 lain' },
+          { status: 403 },
+        )
+      }
+      if (profile.role === 'uiw') {
+        const { data: sah } = await admin.from('up3').select('id')
+          .eq('id', up3_id).eq('uiw_id', profile.uiw_id ?? '').maybeSingle()
+        if (!sah) {
+          return NextResponse.json({ error: 'UP3 tujuan di luar wilayah Anda' }, { status: 403 })
+        }
+      }
+      ubah.up3_id = up3_id
+    }
+
     const { data, error } = await admin
       .from('ulp')
-      .update({ nama: nama.trim(), kode: kode.trim().toUpperCase() })
+      .update(ubah)
       .eq('id', id)
-      .select('id, nama, kode, created_at')
+      // up3_id dan join-nya WAJIB ikut: klien memakai hasil ini untuk
+      // menggantikan baris di daftarnya. Tanpa keduanya, ULP yang baru
+      // disimpan kehilangan induknya dan lompat ke kelompok "Tanpa UP3".
+      .select('id, nama, kode, up3_id, created_at, up3:up3_id(nama, kode)')
       .single()
 
     if (error) {

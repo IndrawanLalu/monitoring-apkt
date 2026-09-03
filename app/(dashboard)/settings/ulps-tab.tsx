@@ -127,7 +127,12 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
         const res = await fetch(`/api/admin/ulps/${selectedUlp.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nama: nama.trim(), kode: kode.trim() }),
+          body: JSON.stringify({
+            nama: nama.trim(), kode: kode.trim(),
+            // Hanya dikirim kalau memang boleh dipilih; peran 'up3' tidak
+            // menampilkan bidangnya dan server menolaknya kalau tetap dikirim.
+            up3_id: pilihUp3 ? (up3Id || undefined) : undefined,
+          }),
         })
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal update ULP')
@@ -247,9 +252,8 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
               label="UP3 Induk *"
               value={up3Id}
               onChange={e => setUp3Id(e.target.value)}
-              disabled={modalMode === 'edit'}
               hint={modalMode === 'edit'
-                ? 'UP3 induk tidak dapat dipindah dari sini'
+                ? 'Mengubah ini memindahkan ULP beserta seluruh data operasionalnya'
                 : 'ULP ini akan bernaung di bawah UP3 tersebut'}
             >
               <option value="">— pilih UP3 —</option>
