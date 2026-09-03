@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/auth'
 import { ulpIdsTerlihat } from '@/lib/otorisasi'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { OutageClient, type OutageData, type RekapOutage } from './outage-client'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -81,7 +82,7 @@ export default async function OutagePage({
 
   if (rekapError) {
     // Paling sering: fungsi rekap_outage belum dijalankan di SQL Editor.
-    console.error('[outage] rekap_outage gagal:', rekapError)
+    console.error('[outage] rekap_outage gagal:', ringkasGalat(rekapError))
     return (
       <div style={{ padding: 32, maxWidth: 620, margin: '40px auto' }}>
         <h1 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 10px' }}>

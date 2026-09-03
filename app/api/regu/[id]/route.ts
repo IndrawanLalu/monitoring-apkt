@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireBarisUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
+import { ringkasGalat } from '@/lib/log'
 
 const patchSchema = z.object({
   nama: z.string().min(1).max(50).optional(),
@@ -29,7 +30,7 @@ export async function PATCH(
     .single()
 
   if (error) {
-    console.error('[regu PATCH]', error)
+    console.error('[regu PATCH]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menyimpan perubahan regu' }, { status: 500 })
   }
 
@@ -47,7 +48,7 @@ export async function DELETE(
   const admin = createAdminClient()
   const { error } = await admin.from('regu').delete().eq('id', id)
   if (error) {
-    console.error('[regu DELETE]', error)
+    console.error('[regu DELETE]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menghapus regu. Pastikan tidak ada laporan atau petugas yang masih terkait.' }, { status: 409 })
   }
 

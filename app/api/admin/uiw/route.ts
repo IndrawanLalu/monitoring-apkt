@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,7 @@ export async function GET() {
 
   const { data, error } = await q
   if (error) {
-    console.error('[uiw GET]', error)
+    console.error('[uiw GET]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal memuat daftar UIW' }, { status: 500 })
   }
 
@@ -62,13 +63,13 @@ export async function POST(req: Request) {
       if (error.code === '23505') {
         return NextResponse.json({ error: `Kode UIW "${kode}" sudah dipakai` }, { status: 409 })
       }
-      console.error('[uiw POST]', error)
+      console.error('[uiw POST]', ringkasGalat(error))
       return NextResponse.json({ error: 'Gagal membuat UIW' }, { status: 500 })
     }
 
     return NextResponse.json({ data: { ...data, jumlahUp3: 0 } }, { status: 201 })
   } catch (e) {
-    console.error('[uiw POST]', e)
+    console.error('[uiw POST]', ringkasGalat(e))
     return NextResponse.json({ error: 'Permintaan tidak valid' }, { status: 400 })
   }
 }

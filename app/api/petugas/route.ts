@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
+import { ringkasGalat } from '@/lib/log'
 
 const schema = z.object({
   ulp_id: z.string().uuid(),
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) {
-    console.error('[petugas POST]', error)
+    console.error('[petugas POST]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menambah petugas' }, { status: 500 })
   }
 

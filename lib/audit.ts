@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ringkasGalat } from '@/lib/log'
 
 /**
  * Jejak audit tindakan terhadap akun pengguna.
@@ -42,6 +43,6 @@ export async function catatAudit(c: CatatanAudit): Promise<void> {
     })
     if (error) console.error('[audit] gagal mencatat:', error.message)
   } catch (e) {
-    console.error('[audit] gagal mencatat:', e)
+    console.error('[audit] gagal mencatat:', ringkasGalat(e))
   }
 }

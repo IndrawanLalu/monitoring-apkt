@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireLaporan, requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { UPDATED_BY } from '@/constants'
 import { kirimUpdateStatus } from '@/lib/wa/send'
+import { ringkasGalat } from '@/lib/log'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -51,7 +52,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (updateErr) {
-    console.error('[laporan pindah]', updateErr)
+    console.error('[laporan pindah]', ringkasGalat(updateErr))
     return NextResponse.json({ error: 'Gagal memindahkan laporan' }, { status: 500 })
   }
 
@@ -69,7 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // WA notif ke grup ULP baru jika pindah ULP
   if (pindahUlp) {
-    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch((e) => console.error("[WA] gagal kirim notif pindah ULP:", e))
+    kirimUpdateStatus(id, laporan.status as never, `Dipindahkan ke ${ulp?.nama ?? ulp_id}`).catch((e) => console.error("[WA] gagal kirim notif pindah ULP:", ringkasGalat(e)))
   }
 
   return NextResponse.json({ data: updated, error: null })

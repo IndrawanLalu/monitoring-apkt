@@ -5,6 +5,7 @@ import { passwordBaruSchema } from '@/lib/validations/auth'
 import { peranPengelola } from '@/lib/otorisasi'
 import { BOLEH_MEMBUAT } from '@/constants'
 import { catatAudit } from '@/lib/audit'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -76,7 +77,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         })
         .eq('id', id)
       if (eRole) {
-        console.error('[user PATCH role]', eRole)
+        console.error('[user PATCH role]', ringkasGalat(eRole))
         return NextResponse.json({ error: 'Gagal mengubah peran' }, { status: 500 })
       }
 
@@ -176,7 +177,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // Hapus dari Supabase Auth
     const { error } = await admin.auth.admin.deleteUser(id)
     if (error) {
-      console.error('[user DELETE]', error)
+      console.error('[user DELETE]', ringkasGalat(error))
       return NextResponse.json({ error: 'Gagal menghapus akun' }, { status: 500 })
     }
 

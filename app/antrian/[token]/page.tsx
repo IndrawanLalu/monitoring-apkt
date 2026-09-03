@@ -1,5 +1,6 @@
 import { AntrinanClient, type AntrianData } from './antrian-client'
 import { ambilDataAntrian } from '@/lib/antrian'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,7 @@ export default async function AntrinanPage({
   } catch (e) {
     // Klien tetap mengambil ulang sendiri, jadi halaman tidak kosong —
     // tapi kegagalannya dicatat, tidak ditelan diam-diam seperti sebelumnya.
-    console.error('[antrian] gagal memuat data awal:', e)
+    console.error('[antrian] gagal memuat data awal:', ringkasGalat(e))
   }
 
   return <AntrinanClient token={token} initialData={initialData} />

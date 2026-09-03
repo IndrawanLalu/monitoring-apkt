@@ -6,6 +6,7 @@ import { cariPiketAktif } from '@/lib/piket'
 import { buildPesanRekapPiket } from '@/lib/wa/messages'
 import { SHIFT_JAM } from '@/constants'
 import type { ShiftType } from '@/types'
+import { ringkasGalat } from '@/lib/log'
 
 export async function POST(req: NextRequest) {
   const { ulp_id, piket_id } = await req.json()
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
   try {
     await kirimTeksKeGrupUlp(ulp_id, ulp.wa_grup_id, pesan)
   } catch (e) {
-    console.error('[WA] gagal kirim rekap piket:', e)
+    console.error('[WA] gagal kirim rekap piket:', ringkasGalat(e))
     return NextResponse.json({ error: (e as Error).message }, { status: 503 })
   }
 

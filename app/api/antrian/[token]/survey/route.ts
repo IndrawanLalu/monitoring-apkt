@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { surveySchema } from '@/lib/validations/laporan'
 import { rateLimit, ipPemanggil } from '@/lib/rate-limit'
+import { ringkasGalat } from '@/lib/log'
 
 export async function POST(
   req: NextRequest,
@@ -82,7 +83,7 @@ export async function POST(
   })
 
   if (error) {
-    console.error('[survey]', error)
+    console.error('[survey]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menyimpan survey' }, { status: 500 })
   }
 

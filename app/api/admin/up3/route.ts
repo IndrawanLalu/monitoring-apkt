@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,7 @@ export async function GET() {
 
   const { data, error } = await q
   if (error) {
-    console.error('[up3 GET]', error)
+    console.error('[up3 GET]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal memuat daftar UP3' }, { status: 500 })
   }
 
@@ -80,13 +81,13 @@ export async function POST(req: Request) {
       if (error.code === '23505') {
         return NextResponse.json({ error: `Kode UP3 "${kode}" sudah dipakai` }, { status: 409 })
       }
-      console.error('[up3 POST]', error)
+      console.error('[up3 POST]', ringkasGalat(error))
       return NextResponse.json({ error: 'Gagal membuat UP3' }, { status: 500 })
     }
 
     return NextResponse.json({ data: { ...data, jumlahUlp: 0 } }, { status: 201 })
   } catch (e) {
-    console.error('[up3 POST]', e)
+    console.error('[up3 POST]', ringkasGalat(e))
     return NextResponse.json({ error: 'Permintaan tidak valid' }, { status: 400 })
   }
 }

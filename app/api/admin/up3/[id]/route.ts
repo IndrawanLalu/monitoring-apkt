@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,12 +46,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (error.code === '23505') {
         return NextResponse.json({ error: 'Kode UP3 sudah dipakai' }, { status: 409 })
       }
-      console.error('[up3 PATCH]', error)
+      console.error('[up3 PATCH]', ringkasGalat(error))
       return NextResponse.json({ error: 'Gagal menyimpan perubahan UP3' }, { status: 500 })
     }
     return NextResponse.json({ data })
   } catch (e) {
-    console.error('[up3 PATCH]', e)
+    console.error('[up3 PATCH]', ringkasGalat(e))
     return NextResponse.json({ error: 'Permintaan tidak valid' }, { status: 400 })
   }
 }
@@ -86,7 +87,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   const { error } = await admin.from('up3').delete().eq('id', id)
   if (error) {
-    console.error('[up3 DELETE]', error)
+    console.error('[up3 DELETE]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menghapus UP3' }, { status: 500 })
   }
   return NextResponse.json({ success: true })

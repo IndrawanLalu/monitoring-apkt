@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireBarisUlp } from '@/lib/otorisasi'
+import { ringkasGalat } from '@/lib/log'
 
 export async function DELETE(
   _req: NextRequest,
@@ -15,7 +16,7 @@ export async function DELETE(
   const { error } = await admin.from('piket').delete().eq('id', id)
 
   if (error) {
-    console.error('[piket DELETE]', error)
+    console.error('[piket DELETE]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menghapus piket' }, { status: 500 })
   }
 

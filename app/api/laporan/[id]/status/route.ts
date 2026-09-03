@@ -4,6 +4,7 @@ import { requireLaporan } from '@/lib/otorisasi'
 import { updateStatusSchema } from '@/lib/validations/laporan'
 import { UPDATED_BY } from '@/constants'
 import { kirimUpdateStatus } from '@/lib/wa/send'
+import { ringkasGalat } from '@/lib/log'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -89,7 +90,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single()
 
   if (error) {
-    console.error('[laporan status PATCH]', error)
+    console.error('[laporan status PATCH]', ringkasGalat(error))
     return NextResponse.json({ data: null, error: 'Gagal mengubah status laporan' }, { status: 500 })
   }
 
@@ -102,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   // Trigger WA reply (fire and forget)
-  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch((e) => console.error("[WA] gagal kirim update status:", e))
+  kirimUpdateStatus(id, parsed.data.status, parsed.data.keterangan).catch((e) => console.error("[WA] gagal kirim update status:", ringkasGalat(e)))
 
   return NextResponse.json({ data: laporan, error: null })
 }

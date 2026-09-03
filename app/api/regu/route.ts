@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
+import { ringkasGalat } from '@/lib/log'
 
 const schema = z.object({
   ulp_id: z.string().uuid(),
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     if (error.code === '23505') return NextResponse.json({ error: 'Nama regu sudah ada' }, { status: 409 })
-    console.error('[regu POST]', error)
+    console.error('[regu POST]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal membuat regu' }, { status: 500 })
   }
 

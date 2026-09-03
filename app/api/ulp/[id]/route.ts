@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireUlp } from '@/lib/otorisasi'
 import { z } from 'zod'
+import { ringkasGalat } from '@/lib/log'
 
 const patchSchema = z.object({
   wa_grup_id: z.string().nullable().optional(),
@@ -33,7 +34,7 @@ export async function PATCH(
     .single()
 
   if (error) {
-    console.error('[ulp PATCH]', error)
+    console.error('[ulp PATCH]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menyimpan perubahan ULP' }, { status: 500 })
   }
 

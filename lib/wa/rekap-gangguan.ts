@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { buildPesanRekapGangguan } from '@/lib/wa/messages'
 import { kirimTeksKeGrupUlp } from '@/lib/wa/send'
 import { cariPiketAktif } from '@/lib/piket'
+import { ringkasGalat } from '@/lib/log'
 
 /** Bungkus kirimTeksKeGrupUlp jadi boolean — scheduler tidak boleh berhenti karena 1 ULP gagal. */
 async function sendTextToUlpGroup(ulpId: string, waGrupId: string, text: string): Promise<boolean> {
@@ -9,7 +10,7 @@ async function sendTextToUlpGroup(ulpId: string, waGrupId: string, text: string)
     await kirimTeksKeGrupUlp(ulpId, waGrupId, text)
     return true
   } catch (e) {
-    console.error(`[WA] rekap gangguan ULP ${ulpId} gagal:`, e)
+    console.error(`[WA] rekap gangguan ULP ${ulpId} gagal:`, ringkasGalat(e))
     return false
   }
 }
@@ -154,9 +155,15 @@ export function startRekapGangguanScheduler(): void {
       try {
         const res = await kirimRekapGangguanSemua()
         const ok = res.filter((r) => r.ok).length
-        console.log(`[RekapGangguan] Terkirim ${ok}/${res.length} ULP`, res)
+        // Hanya ringkasannya: `res` memuat teks pesan rekap tiap ULP, dan
+        // baris ini tercetak tiap 3 jam selamanya.
+        const gagal = res.filter((r) => !r.ok).map((r) => r.nama)
+        console.log(
+          `[RekapGangguan] Terkirim ${ok}/${res.length} ULP` +
+            (gagal.length ? ` — gagal: ${gagal.join(', ')}` : ''),
+        )
       } catch (e) {
-        console.error('[RekapGangguan] Gagal kirim batch:', e)
+        console.error('[RekapGangguan] Gagal kirim batch:', ringkasGalat(e))
       } finally {
         scheduleNext() // jadwalkan slot berikutnya
       }

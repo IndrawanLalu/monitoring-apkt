@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireBarisUlp } from '@/lib/otorisasi'
+import { ringkasGalat } from '@/lib/log'
 
 export async function DELETE(
   _req: NextRequest,
@@ -13,7 +14,7 @@ export async function DELETE(
   const admin = createAdminClient()
   const { error } = await admin.from('petugas_apkt').delete().eq('id', id)
   if (error) {
-    console.error('[petugas DELETE]', error)
+    console.error('[petugas DELETE]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menghapus petugas' }, { status: 500 })
   }
 

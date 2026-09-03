@@ -4,6 +4,7 @@ import { requireUlp, reguMilikUlp } from '@/lib/otorisasi'
 import { createLaporanSchema } from '@/lib/validations/laporan'
 import { UPDATED_BY } from '@/constants'
 import { kirimLaporanBaru } from '@/lib/wa/send'
+import { ringkasGalat } from '@/lib/log'
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
   })
 
   // Trigger WA notification to group
-  kirimLaporanBaru(laporan.id).catch((e) => console.error("Error trigger WA Bot di callback:", e))
+  kirimLaporanBaru(laporan.id).catch((e) => console.error("Error trigger WA Bot di callback:", ringkasGalat(e)))
 
   return NextResponse.json({ data: laporan, error: null }, { status: 201 })
 }

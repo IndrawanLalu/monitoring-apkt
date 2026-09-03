@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { peranPengelola } from '@/lib/otorisasi'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +36,7 @@ export async function GET() {
 
   const { data, error } = await q
   if (error) {
-    console.error('[ulps GET]', error)
+    console.error('[ulps GET]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal memuat daftar ULP' }, { status: 500 })
   }
   return NextResponse.json({ data: data ?? [] })

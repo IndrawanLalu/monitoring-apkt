@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,12 +31,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (error.code === '23505') {
         return NextResponse.json({ error: 'Kode UIW sudah dipakai' }, { status: 409 })
       }
-      console.error('[uiw PATCH]', error)
+      console.error('[uiw PATCH]', ringkasGalat(error))
       return NextResponse.json({ error: 'Gagal menyimpan perubahan UIW' }, { status: 500 })
     }
     return NextResponse.json({ data })
   } catch (e) {
-    console.error('[uiw PATCH]', e)
+    console.error('[uiw PATCH]', ringkasGalat(e))
     return NextResponse.json({ error: 'Permintaan tidak valid' }, { status: 400 })
   }
 }
@@ -66,7 +67,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
   const { error } = await admin.from('uiw').delete().eq('id', id)
   if (error) {
-    console.error('[uiw DELETE]', error)
+    console.error('[uiw DELETE]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal menghapus UIW' }, { status: 500 })
   }
   return NextResponse.json({ success: true })

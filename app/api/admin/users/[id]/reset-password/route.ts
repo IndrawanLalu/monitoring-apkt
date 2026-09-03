@@ -3,6 +3,7 @@ import { getProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { peranPengelola } from '@/lib/otorisasi'
 import { catatAudit } from '@/lib/audit'
+import { ringkasGalat } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,7 +76,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const baru = passwordSementara()
   const { error } = await admin.auth.admin.updateUserById(id, { password: baru })
   if (error) {
-    console.error('[reset-password]', error)
+    console.error('[reset-password]', ringkasGalat(error))
     return NextResponse.json({ error: 'Gagal mereset password' }, { status: 500 })
   }
 
