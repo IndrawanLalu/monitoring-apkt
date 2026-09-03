@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, PasswordInput, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
@@ -10,7 +10,10 @@ import { BOLEH_MEMBUAT, LABEL_ROLE } from '@/constants'
 interface UlpInfo {
   id: string
   nama: string
-  kode: string
+  kode?: string
+  /** Induk UP3, dikirim getProfile — dipakai mengelompokkan pemilih ULP. */
+  up3_id?: string | null
+  up3?: { nama: string; kode: string } | null
 }
 
 interface UserCc {
@@ -65,6 +68,25 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
   // Peran apa saja yang boleh saya buat. Sumbernya sama dengan yang dipakai
   // server, jadi UI tidak pernah menawarkan pilihan yang nanti ditolak API.
   const peranBoleh = BOLEH_MEMBUAT[peranSaya] ?? []
+
+  // ULP dikelompokkan per UP3. Super admin bisa melihat belasan ULP dari
+  // banyak UP3 sekaligus; deretan chip rata memaksa orang memindai satu per
+  // satu untuk menemukan yang dicari.
+  const kelompokUlp = useMemo(() => {
+    const peta = new Map<string, { kunci: string; judul: string; items: UlpInfo[] }>()
+    for (const u of ulps) {
+      const kunci = u.up3_id ?? '__tanpa__'
+      if (!peta.has(kunci)) {
+        peta.set(kunci, {
+          kunci,
+          judul: u.up3 ? `${u.up3.nama} (${u.up3.kode})` : 'Tanpa UP3',
+          items: [],
+        })
+      }
+      peta.get(kunci)!.items.push(u)
+    }
+    return [...peta.values()].sort((a, b) => a.judul.localeCompare(b.judul))
+  }, [ulps])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -416,8 +438,38 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
             <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8, display: 'block' }}>
               Pilih Cakupan ULP (Bisa lebih dari satu) <span style={{ color: '#E4002B' }}>*</span>
             </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {ulps.map(ulp => {
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {kelompokUlp.map(g => {
+                const idsGrup = g.items.map(i => i.id)
+                const semuaTerpilih = idsGrup.every(id => selectedUlps.includes(id))
+                return (
+                  <div key={g.kunci}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        🏭 {g.judul}
+                      </span>
+                      {/* Memilih seluruh ULP satu UP3 sekaligus — pola penugasan
+                          yang lazim, dan menghemat belasan klik. */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUlps(prev => semuaTerpilih
+                          ? prev.filter(id => !idsGrup.includes(id))
+                          : [...new Set([...prev, ...idsGrup])])}
+                        style={{
+                          fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 5,
+                          border: '1px solid var(--border)', backgroundColor: 'transparent',
+                          color: 'var(--text-muted)', cursor: 'pointer',
+                        }}
+                      >
+                        {semuaTerpilih ? 'Hapus semua' : 'Pilih semua'}
+                      </button>
+                      <span style={{ fontSize: 10.5, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                        {idsGrup.filter(id => selectedUlps.includes(id)).length}/{idsGrup.length}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {g.items.map(ulp => {
                 const isSelected = selectedUlps.includes(ulp.id)
                 return (
                   <button
@@ -439,6 +491,10 @@ export function UsersTab({ ulps, peranSaya, onToast }: Props) {
                     </span>
                     {ulp.nama}
                   </button>
+                )
+              })}
+                    </div>
+                  </div>
                 )
               })}
             </div>

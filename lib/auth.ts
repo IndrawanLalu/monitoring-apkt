@@ -8,6 +8,9 @@ export interface UlpInfo {
   nama: string
   kode: string
   wa_grup_id: string | null
+  /** Induk UP3 — dipakai UI untuk mengelompokkan daftar ULP yang panjang. */
+  up3_id?: string | null
+  up3?: { nama: string; kode: string } | null
 }
 
 export interface UserProfile {
@@ -32,7 +35,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     admin.from('profiles').select('nama, role, up3_id, uiw_id').eq('id', user.id).single(),
     admin
       .from('user_ulp')
-      .select('ulp:ulp(id, nama, kode, wa_grup_id)')
+      .select('ulp:ulp(id, nama, kode, wa_grup_id, up3_id, up3:up3_id(nama, kode))')
       .eq('user_id', user.id),
   ])
 
@@ -53,7 +56,7 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
   // Untuk peran pengelola, hierarki bersifat menentukan: baris user_ulp
   // warisan tidak ikut menambah, supaya batas UP3 tidak bisa ditembus.
   // user_ulp tetap jadi mekanisme penugasan untuk operator.
-  const kolomUlp = 'id, nama, kode, wa_grup_id'
+  const kolomUlp = 'id, nama, kode, wa_grup_id, up3_id, up3:up3_id(nama, kode)'
   let ulps: UlpInfo[] = []
 
   if (role === 'super_admin') {
