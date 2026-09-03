@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
@@ -51,6 +52,7 @@ const TEKS = {
 
 export function WilayahTab({ tingkat, peranSaya, onToast }: Props) {
   const konfirmasi = useKonfirmasi()
+  const router = useRouter()
   const t = TEKS[tingkat]
 
   const [items, setItems] = useState<ItemWilayah[]>([])
@@ -122,6 +124,7 @@ export function WilayahTab({ tingkat, peranSaya, onToast }: Props) {
       if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal menyimpan')
 
       setItems(prev => mode === 'add' ? [...prev, json.data] : prev.map(x => x.id === terpilih!.id ? { ...x, ...json.data } : x))
+      router.refresh()
       onToast(`${t.satuan} berhasil ${mode === 'add' ? 'dibuat' : 'diperbarui'}`, 'success')
       setMode(null)
     } catch (err) {
@@ -149,6 +152,7 @@ export function WilayahTab({ tingkat, peranSaya, onToast }: Props) {
     })
     if (ok) {
       setItems(prev => prev.filter(i => i.id !== x.id))
+      router.refresh()
       onToast(`${t.satuan} dihapus`, 'success')
     }
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
@@ -26,6 +27,15 @@ interface Props {
 
 export function UlpsTab({ peranSaya, onToast }: Props) {
   const konfirmasi = useKonfirmasi()
+  const router = useRouter()
+
+  // Daftar ULP juga dipakai tab lain lewat profile.ulps, yang diambil server
+  // saat halaman dirender. Tanpa menyegarkannya, ULP yang baru dibuat di sini
+  // tidak muncul di pemilih ULP pada Manajemen User sampai halaman dimuat
+  // ulang — dan tidak ada petunjuk apa pun bahwa daftarnya sudah usang.
+  function segarkanDataServer() {
+    router.refresh()
+  }
   const [ulps, setUlps] = useState<UlpItem[]>([])
   const [loading, setLoading] = useState(true)
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null)
@@ -122,6 +132,7 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal membuat ULP')
         setUlps(prev => [...prev, json.data].sort((a, b) => a.nama.localeCompare(b.nama)))
+        segarkanDataServer()
         onToast('ULP berhasil dibuat. Muat ulang halaman untuk melihat perubahan di menu.', 'success')
       } else if (modalMode === 'edit' && selectedUlp) {
         const res = await fetch(`/api/admin/ulps/${selectedUlp.id}`, {
@@ -137,6 +148,7 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
         const json = await res.json()
         if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal update ULP')
         setUlps(prev => prev.map(u => u.id === selectedUlp.id ? json.data : u).sort((a, b) => a.nama.localeCompare(b.nama)))
+        segarkanDataServer()
         onToast('ULP berhasil diupdate', 'success')
       }
       setModalMode(null)
@@ -161,7 +173,8 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error ?? 'Gagal menghapus ULP')
       setUlps(prev => prev.filter(u => u.id !== ulp.id))
-      onToast('ULP berhasil dihapus. Muat ulang halaman untuk melihat perubahan.', 'success')
+      segarkanDataServer()
+      onToast('ULP berhasil dihapus', 'success')
     } catch (err: any) {
       onToast(err.message, 'error')
     }
