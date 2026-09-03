@@ -21,6 +21,16 @@ export interface UserProfile {
   uiw_id: string | null
   ulps: UlpInfo[]
   activeUlp: UlpInfo | null
+  /**
+   * Label lingkup akun untuk header — "UIW NTB", "UP3 Mataram", "Semua Unit".
+   *
+   * Header dulu mendaftar seluruh nama ULP (`ulps.map(nama).join(' & ')`).
+   * Untuk operator dengan 2 ULP itu pas, tapi akun up3 punya 4 ULP dan akun
+   * uiw punya 16 — headernya jadi sederet nama yang mendorong menu keluar
+   * layar. Yang relevan bagi peran pengelola bukan daftar isinya, melainkan
+   * nama lingkupnya sendiri.
+   */
+  lingkup: string
 }
 
 export const getProfile = cache(async function getProfile(): Promise<UserProfile | null> {
@@ -58,12 +68,17 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
   // user_ulp tetap jadi mekanisme penugasan untuk operator.
   const kolomUlp = 'id, nama, kode, wa_grup_id, up3_id, up3:up3_id(nama, kode)'
   let ulps: UlpInfo[] = []
+  let namaUiw: string | null = null
 
   if (role === 'super_admin') {
     const { data } = await admin.from('ulp').select(kolomUlp).order('nama')
     ulps = (data ?? []) as unknown as UlpInfo[]
   } else if (role === 'uiw' && uiwId) {
-    const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', uiwId)
+    const [{ data: up3s }, { data: uiwRow }] = await Promise.all([
+      admin.from('up3').select('id').eq('uiw_id', uiwId),
+      admin.from('uiw').select('nama').eq('id', uiwId).maybeSingle(),
+    ])
+    namaUiw = (uiwRow?.nama as string | undefined) ?? null
     const up3Ids = (up3s ?? []).map((u) => u.id as string)
     if (up3Ids.length > 0) {
       const { data } = await admin.from('ulp').select(kolomUlp).in('up3_id', up3Ids).order('nama')
@@ -80,6 +95,18 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     ulps = (userUlps ?? []).map((row) => row.ulp as unknown as UlpInfo).filter(Boolean)
   }
 
+  // Nama UP3 diambil dari ULP mana pun: untuk peran up3 semuanya se-UP3.
+  // Operator tetap memakai nama ULP-nya sendiri — biasanya hanya 1-2 dan
+  // itulah identitas yang dikenalinya.
+  const lingkup =
+    role === 'super_admin'
+      ? 'Semua Unit'
+      : role === 'uiw'
+        ? namaUiw ?? 'Unit Induk Wilayah'
+        : role === 'up3' || role === 'admin'
+          ? ulps[0]?.up3?.nama ?? 'Unit Pelaksana'
+          : ulps.map((u) => u.nama).join(' & ') || 'Tanpa ULP'
+
   const cookieStore = await cookies()
   const activeUlpId = cookieStore.get('active_ulp_id')?.value
   const activeUlp = ulps.find((u) => u.id === activeUlpId) ?? ulps[0] ?? null
@@ -92,5 +119,6 @@ export const getProfile = cache(async function getProfile(): Promise<UserProfile
     uiw_id: uiwId,
     ulps,
     activeUlp,
+    lingkup,
   }
 })

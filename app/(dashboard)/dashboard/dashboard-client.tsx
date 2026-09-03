@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReguCard } from '@/components/dashboard/regu-card'
 import { TambahLaporanModal, type ReguForModal } from '@/components/dashboard/tambah-laporan-modal'
@@ -18,6 +18,9 @@ interface UlpInfo {
   nama: string
   kode: string
   wa_grup_id: string | null
+  /** Induk UP3 — dipakai mengelompokkan pemilih ULP saat jumlahnya banyak. */
+  up3_id?: string | null
+  up3?: { nama: string; kode: string } | null
 }
 
 interface UlpData {
@@ -257,6 +260,32 @@ export function DashboardClient({ ulpDataList, today }: Props) {
 
   const selectedData = ulpDataList[selectedUlpIdx] ?? ulpDataList[0]
 
+  // Deretan chip tanpa pembungkus baris cukup untuk operator (1-2 ULP), tapi
+  // akun up3 menaungi 4 ULP dan akun uiw 16 — chipnya saling terjepit sampai
+  // namanya tak terbaca. Di atas ambang ini pemilihnya berubah jadi dropdown
+  // yang dikelompokkan per UP3, sehingga tingginya tetap satu baris berapa pun
+  // jumlah ULP-nya.
+  const BANYAK_ULP = 6
+  const pakaiDropdown = ulpDataList.length > BANYAK_ULP
+
+  const grupUlp = useMemo(() => {
+    const peta = new Map<string, { kunci: string; judul: string; items: { d: UlpData; idx: number }[] }>()
+    ulpDataList.forEach((d, idx) => {
+      const kunci = d.ulp.up3_id ?? '__tanpa__'
+      if (!peta.has(kunci)) {
+        peta.set(kunci, { kunci, judul: d.ulp.up3?.nama ?? 'Tanpa UP3', items: [] })
+      }
+      peta.get(kunci)!.items.push({ d, idx })
+    })
+    return [...peta.values()].sort((a, b) => a.judul.localeCompare(b.judul))
+  }, [ulpDataList])
+
+  // Dropdown tidak bisa menampilkan titik merah per ULP seperti chip, jadi
+  // penandanya diringkas: berapa ULP lain yang punya laporan baru.
+  const jumlahUlpAdaBaru = ulpDataList.filter(
+    (d, idx) => idx !== selectedUlpIdx && newLaporanFlags[d.ulp.id],
+  ).length
+
   const { ulp, piket, reguList, petugasList } = selectedData
   const laporan = laporanMap[ulp.id] ?? []
   const uniqueLaporan = Array.from(new Map(laporan.map((l) => [l.id, l])).values())
@@ -295,14 +324,66 @@ export function DashboardClient({ ulpDataList, today }: Props) {
           padding: '8px 16px',
           borderBottom: '1px solid var(--border)',
           backgroundColor: 'var(--bg-surface)',
+          overflowX: 'auto',
+          scrollbarWidth: 'none',
         }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>ULP:</span>
-          {ulpDataList.map((d, idx) => (
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>ULP:</span>
+
+          {pakaiDropdown ? (
+            <>
+              <select
+                value={selectedUlpIdx}
+                onChange={(e) => handleSelectUlp(Number(e.target.value))}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  border: '2px solid var(--accent)',
+                  backgroundColor: 'var(--bg-surface)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  maxWidth: 260,
+                }}
+              >
+                {grupUlp.map((g) => (
+                  <optgroup key={g.kunci} label={g.judul}>
+                    {g.items.map(({ d, idx }) => (
+                      <option key={d.ulp.id} value={idx}>
+                        {newLaporanFlags[d.ulp.id] && idx !== selectedUlpIdx ? '● ' : ''}
+                        {d.ulp.nama}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {jumlahUlpAdaBaru > 0 && (
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(228,0,43,0.12)',
+                    border: '1px solid rgba(228,0,43,0.35)',
+                    color: '#E4002B',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {jumlahUlpAdaBaru} ULP ada laporan baru
+                </span>
+              )}
+            </>
+          ) : (
+          ulpDataList.map((d, idx) => (
             <button
               key={d.ulp.id}
               onClick={() => handleSelectUlp(idx)}
               style={{
                 position: 'relative',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
                 padding: '4px 14px',
                 borderRadius: 20,
                 fontSize: 13,
@@ -329,7 +410,7 @@ export function DashboardClient({ ulpDataList, today }: Props) {
                 }} />
               )}
             </button>
-          ))}
+          )))}
         </div>
       )}
 

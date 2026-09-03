@@ -70,16 +70,46 @@ export function Navbar({ profile }: NavbarProps) {
         >
           ⚡
         </div>
+        {/* Lingkup akun, bukan daftar isinya: akun up3 menaungi 4 ULP dan akun
+            uiw 16 — mendaftar semuanya mendorong menu keluar layar. Jumlahnya
+            tetap ditampilkan sebagai lencana kecil supaya informasinya tidak
+            hilang, dan nama lengkapnya ada di tooltip. */}
         <span
-          style={{
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            letterSpacing: '-0.01em',
-          }}
-          className="hidden sm:block"
+          className="hidden sm:flex"
+          style={{ alignItems: 'center', gap: 6, minWidth: 0 }}
+          title={profile.ulps.map((u) => u.nama).join(', ')}
         >
-          {profile.ulps.map((u) => u.nama).join(' & ')}
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              letterSpacing: '-0.01em',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 200,
+            }}
+          >
+            {profile.lingkup}
+          </span>
+          {profile.ulps.length > 1 && (
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: 999,
+                backgroundColor: 'var(--bg-surface-2)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              {profile.ulps.length} ULP
+            </span>
+          )}
         </span>
       </div>
 
