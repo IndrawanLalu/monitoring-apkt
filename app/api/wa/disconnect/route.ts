@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { gatewayEnabled, gatewayDeleteSession, resetCacheSesi } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewayDeleteSession, resetCacheSesi, bolehKelolaSesi, PESAN_KELOLA_SESI_DIMATIKAN } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -9,6 +9,10 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const userId = user.id
+
+  if (!bolehKelolaSesi()) {
+    return NextResponse.json({ error: PESAN_KELOLA_SESI_DIMATIKAN }, { status: 403 })
+  }
 
   // --- Jalur BARU: gateway (Baileys) ---
   if (gatewayEnabled()) {

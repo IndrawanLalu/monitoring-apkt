@@ -31,6 +31,37 @@ export function waOffline(): boolean {
   return process.env.WA_OFFLINE === 'true'
 }
 
+/**
+ * Bolehkah instance ini memulai / memutus sesi WA di gateway?
+ *
+ * Session id hanya diturunkan dari user id (`apkt-{userId}`), tanpa penanda
+ * lingkungan — jadi laptop dan VPS menunjuk sesi yang SAMA di gateway yang
+ * sama. Menekan "Putuskan Koneksi" dari laptop memanggil
+ * gatewayDeleteSession() pada sesi yang sedang dipakai production: sesinya
+ * terhapus berikut kredensialnya, dan production harus scan QR ulang.
+ *
+ * Mengirim pesan dari laptop tidak berbahaya — itu hanya menumpang sesi yang
+ * sudah terbuka. Yang berbahaya cuma dua tombol pengelola siklus hidup itu,
+ * jadi hanya keduanya yang dipagari.
+ *
+ * Default true supaya VPS tidak perlu diubah sama sekali. Laptop
+ * menonaktifkannya dengan WA_SESSION_CONTROL=false di .env.local.
+ */
+export function bolehKelolaSesi(): boolean {
+  // Longgar dalam menerima bentuk "mati": default-nya mengizinkan (supaya VPS
+  // tidak perlu diubah), jadi salah ketik di .env.local jatuh ke sisi yang
+  // BERBAHAYA tanpa gejala apa pun. Menerima FALSE/0/off/no menutup celah itu
+  // tanpa mengubah default-nya.
+  const v = (process.env.WA_SESSION_CONTROL ?? '').trim().toLowerCase()
+  return !['false', '0', 'off', 'no'].includes(v)
+}
+
+/** Pesan tolakan yang sama untuk kedua route, supaya tidak berbeda-beda. */
+export const PESAN_KELOLA_SESI_DIMATIKAN =
+  'Pengelolaan sesi WhatsApp dimatikan di instance ini (WA_SESSION_CONTROL=false). ' +
+  'Sesi di gateway dipakai bersama dengan production — memulai atau memutusnya dari sini ' +
+  'akan memaksa production scan QR ulang. Lakukan dari aplikasi di VPS.'
+
 /** Gateway tak terjangkau (mati/timeout/jaringan), dibedakan dari "sesi tidak ada". */
 export class GatewayUnreachableError extends Error {
   constructor(cause: string) {

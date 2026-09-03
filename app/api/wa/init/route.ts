@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { gatewayEnabled, gatewayStartSession, waOffline, GatewayUnreachableError, resetCacheSesi } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewayStartSession, waOffline, GatewayUnreachableError, resetCacheSesi, bolehKelolaSesi, PESAN_KELOLA_SESI_DIMATIKAN } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -10,6 +10,10 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id
   const admin = createAdminClient()
+
+  if (!bolehKelolaSesi()) {
+    return NextResponse.json({ error: PESAN_KELOLA_SESI_DIMATIKAN }, { status: 403 })
+  }
 
   if (!gatewayEnabled()) {
     return NextResponse.json({ error: 'wa-gateway belum dikonfigurasi (WA_USE_GATEWAY / WA_GATEWAY_URL / WA_GATEWAY_KEY).' }, { status: 503 })
