@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Modal } from '@/components/ui/modal'
@@ -39,14 +39,34 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
   // Akun 'up3' selalu membuat ULP di UP3-nya sendiri, jadi tidak perlu memilih.
   const pilihUp3 = peranSaya === 'super_admin' || peranSaya === 'uiw'
 
+  // Diambil untuk SEMUA peran: selain jadi isi dropdown, namanya dipakai
+  // sebagai judul kelompok di daftar ULP.
   useEffect(() => {
-    if (!pilihUp3) return
     let batal = false
     fetch('/api/admin/up3').then(r => r.json()).then(j => {
       if (!batal) setDaftarUp3(j.data ?? [])
     }).catch(() => null)
     return () => { batal = true }
   }, [pilihUp3])
+
+  // ULP dikelompokkan menurut UP3 induknya. Untuk super_admin yang melihat
+  // delapan ULP dari dua UP3, daftar rata sulit dibaca — dan hubungan
+  // hierarkinya, yang justru inti halaman ini, jadi tidak terlihat.
+  const kelompok = useMemo(() => {
+    const namaUp3 = new Map(daftarUp3.map(u => [u.id, `${u.nama} (${u.kode})`]))
+    const peta = new Map<string, { judul: string; items: UlpItem[] }>()
+    for (const u of ulps) {
+      const kunci = u.up3_id ?? '__tanpa__'
+      if (!peta.has(kunci)) {
+        peta.set(kunci, {
+          judul: namaUp3.get(kunci) ?? (kunci === '__tanpa__' ? 'Tanpa UP3' : 'UP3 lain'),
+          items: [],
+        })
+      }
+      peta.get(kunci)!.items.push(u)
+    }
+    return [...peta.values()].sort((a, b) => a.judul.localeCompare(b.judul))
+  }, [ulps, daftarUp3])
 
   const fetchUlps = useCallback(async () => {
     setLoading(true)
@@ -159,8 +179,24 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
           Belum ada ULP. Klik &quot;+ Tambah ULP Baru&quot; untuk menambahkan.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {ulps.map(ulp => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+          {kelompok.map(g => (
+            <section key={g.judul}>
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 10,
+                paddingBottom: 8, marginBottom: 12,
+                borderBottom: '1.5px solid var(--border)',
+              }}>
+                <h3 style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+                  🏭 {g.judul}
+                </h3>
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-muted)' }}>
+                  {g.items.length} ULP
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+          {g.items.map(ulp => (
             <div key={ulp.id} style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -178,6 +214,9 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
                 <Button variant="danger" size="sm" style={{ flex: 1 }} onClick={() => handleDelete(ulp)}>Hapus</Button>
               </div>
             </div>
+          ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
