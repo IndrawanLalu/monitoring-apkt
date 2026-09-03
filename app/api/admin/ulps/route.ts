@@ -15,7 +15,13 @@ export async function GET() {
   // Cakupan mengikuti peran. Versi lama mewajibkan profile.up3_id, sehingga
   // super_admin — yang memang tidak punya UP3 — ditolak dan halaman Kelola ULP
   // gagal terbuka untuknya.
-  let q = admin.from('ulp').select('id, nama, kode, up3_id, created_at').order('nama')
+  // Nama UP3 ikut dikirim supaya klien bisa langsung mengelompokkan tanpa
+  // menunggu fetch kedua — jeda antara keduanya sempat membuat semua kelompok
+  // berjudul sama dan React salah mencocokkan elemennya.
+  let q = admin
+    .from('ulp')
+    .select('id, nama, kode, up3_id, created_at, up3:up3_id(nama, kode)')
+    .order('nama')
 
   if (profile.role === 'uiw' && profile.uiw_id) {
     const { data: up3s } = await admin.from('up3').select('id').eq('uiw_id', profile.uiw_id)
@@ -74,7 +80,9 @@ export async function POST(req: Request) {
     const { data: newUlp, error: ulpError } = await admin
       .from('ulp')
       .insert({ nama: nama.trim(), kode: kode.trim().toUpperCase(), up3_id: up3Tujuan })
-      .select('id, nama, kode, up3_id, created_at')
+      // Sertakan juga di sini, supaya ULP yang baru dibuat langsung masuk
+      // kelompok yang benar tanpa perlu memuat ulang halaman.
+      .select('id, nama, kode, up3_id, created_at, up3:up3_id(nama, kode)')
       .single()
 
     if (ulpError) {

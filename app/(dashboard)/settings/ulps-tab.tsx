@@ -11,6 +11,8 @@ interface UlpItem {
   nama: string
   kode: string
   up3_id?: string | null
+  /** Ikut dikirim server, jadi pengelompokan tidak menunggu fetch kedua. */
+  up3?: { nama: string; kode: string } | null
   created_at: string
 }
 
@@ -53,20 +55,20 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
   // delapan ULP dari dua UP3, daftar rata sulit dibaca — dan hubungan
   // hierarkinya, yang justru inti halaman ini, jadi tidak terlihat.
   const kelompok = useMemo(() => {
-    const namaUp3 = new Map(daftarUp3.map(u => [u.id, `${u.nama} (${u.kode})`]))
-    const peta = new Map<string, { judul: string; items: UlpItem[] }>()
+    const peta = new Map<string, { kunci: string; judul: string; items: UlpItem[] }>()
     for (const u of ulps) {
       const kunci = u.up3_id ?? '__tanpa__'
       if (!peta.has(kunci)) {
         peta.set(kunci, {
-          judul: namaUp3.get(kunci) ?? (kunci === '__tanpa__' ? 'Tanpa UP3' : 'UP3 lain'),
+          kunci,
+          judul: u.up3 ? `${u.up3.nama} (${u.up3.kode})` : 'Tanpa UP3',
           items: [],
         })
       }
       peta.get(kunci)!.items.push(u)
     }
     return [...peta.values()].sort((a, b) => a.judul.localeCompare(b.judul))
-  }, [ulps, daftarUp3])
+  }, [ulps])
 
   const fetchUlps = useCallback(async () => {
     setLoading(true)
@@ -181,7 +183,7 @@ export function UlpsTab({ peranSaya, onToast }: Props) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
           {kelompok.map(g => (
-            <section key={g.judul}>
+            <section key={g.kunci}>
               <div style={{
                 display: 'flex', alignItems: 'baseline', gap: 10,
                 paddingBottom: 8, marginBottom: 12,
