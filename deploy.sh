@@ -42,9 +42,14 @@ npm run build
 ok "Build selesai"
 
 # ─── 5. Restart PM2 ───────────────────────────────────────────
-info "Merestart proses PM2..."
-pm2 restart all
-ok "PM2 direstart"
+info "Merestart aplikasi..."
+# Hanya aplikasi ini. `pm2 restart all` ikut merestart wa-gateway — semua sesi
+# WhatsApp terjatuh dan butuh beberapa detik menyambung ulang (creds tersimpan
+# di auth/, jadi tidak perlu scan QR) — dan ikut mematikan smart-mataram yang
+# tidak ada hubungannya dengan deploy ini.
+# --update-env supaya perubahan .env ikut terbaca tanpa perlu delete+start.
+pm2 restart monitoring-apkt --update-env
+ok "monitoring-apkt direstart (wa-gateway & smart-mataram tidak disentuh)"
 
 # ─── 6. Simpan state PM2 ──────────────────────────────────────
 pm2 save --force > /dev/null 2>&1
