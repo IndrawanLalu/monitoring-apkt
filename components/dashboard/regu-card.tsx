@@ -21,14 +21,23 @@ function getDurasiMenit(laporan: Laporan, now: number): number {
   return Math.max(0, Math.floor((now - new Date(laporan.created_at).getTime()) / 60000))
 }
 
+/**
+ * Ambang peringatan, sama untuk semua status selama laporan belum selesai.
+ *
+ * Sebelumnya tiap status punya ambangnya sendiri dan `penugasan_regu` — status
+ * bawaan saat laporan dibuat dari dashboard — tidak diperiksa sama sekali.
+ * Akibatnya laporan yang menunggu regu bisa menggantung berjam-jam tanpa
+ * penanda apa pun.
+ *
+ * Kelak sebaiknya bisa diatur dari halaman Pengaturan, bukan angka tetap di sini.
+ */
+const AMBANG_KUNING_MENIT = 30
+const AMBANG_MERAH_MENIT = 120
+
 function getWarning(status: StatusLaporan, menit: number): WarningLevel {
-  if (status === 'lapor') {
-    if (menit >= 50) return 'red'
-    if (menit >= 20) return 'yellow'
-  } else if (status === 'ditangani' || status === 'nyala_sementara') {
-    if (menit >= 60) return 'red'
-    if (menit >= 40) return 'yellow'
-  }
+  if (status === 'selesai') return 'none'
+  if (menit >= AMBANG_MERAH_MENIT) return 'red'
+  if (menit >= AMBANG_KUNING_MENIT) return 'yellow'
   return 'none'
 }
 
