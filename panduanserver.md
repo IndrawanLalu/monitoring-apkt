@@ -27,7 +27,14 @@ ssh servercc-lan
 
 ## Membuka antarmuka
 
-Semua antarmuka hanya mendengarkan di server, jadi diakses lewat terowongan SSH. **Biarkan jendela terminalnya terbuka** selama dipakai.
+Sejak 14 Sep 2026 aplikasi sudah punya alamat sendiri — staf tidak perlu terowongan lagi:
+
+| Alamat | Untuk |
+|---|---|
+| `https://app.commandcenter.my.id` | Staf — dashboard, piket, settings, rekap |
+| `https://commandcenter.my.id/antrian/<token>` | Pelanggan — hanya lorong ini yang terbuka |
+
+Terowongan SSH tetap dibutuhkan untuk **Supabase Studio** dan **admin wa-gateway**, yang sengaja tidak diekspos ke internet. **Biarkan jendela terminalnya terbuka** selama dipakai.
 
 | Yang dibuka | Perintah | Lalu buka di browser |
 |---|---|---|
@@ -179,74 +186,80 @@ Lokasi:
 
 ---
 
-## Untuk tim IT — rute tunnel yang dibutuhkan
+## Domain dan tunnel
 
-Dua rute, keduanya di `cloudflared` yang sudah berjalan sebagai service systemd **di dalam servercc**:
+Dikerjakan sendiri, tanpa tim IT. `commandcenter.my.id` ada di akun Cloudflare milik sendiri; `up2dntb.my.id` tetap milik IT dan hanya melayani `ssh-cc`.
 
-| Hostname | Diarahkan ke |
-|---|---|
-| `commandcenter.my.id` | `http://localhost:4000` |
-| `api-apkt.commandcenter.my.id` | `http://localhost:8000` |
+**Dua `cloudflared` berjalan berdampingan di servercc:**
 
-Catatan teknis:
+| | Service | Folder | Metrics |
+|---|---|---|---|
+| Milik IT (SSH) | `cloudflared.service` | `/etc/cloudflared/` | `127.0.0.1:20241` |
+| Milik kita (aplikasi) | `cloudflared-apkt.service` | `/etc/cloudflared-apkt/` | `127.0.0.1:20242` |
 
-- Keduanya **HTTP biasa** di sisi server — TLS diterminasi di Cloudflare
-- Harus **named tunnel** dengan hostname tetap, bukan quick tunnel (`*.trycloudflare.com`) yang alamatnya berubah setiap restart
-- **Tidak perlu Cloudflare Access.** Pembatasannya sudah di dalam aplikasi (lihat di bawah)
+> ⚠️ **Jangan pernah menjalankan `cloudflared service install`** dari dashboard Cloudflare. Perintah itu memakai nama service dan folder yang **sama persis** dengan milik IT — akan menimpanya dan memutus akses SSH-mu sendiri. Instance kedua dipasang lewat `~/pasang-tunnel-apkt.sh` yang menulis unit systemd-nya sendiri.
+>
+> Port metrics **wajib berbeda**. Kalau sama, instance kedua gagal menyala dan pesan errornya tidak menyebut penyebabnya.
 
-### Kalau IT bilang "port sudah dipakai"
+**Tiga hostname aktif:**
 
-Tidak ada port yang dialokasikan di jaringan. `cloudflared` berjalan **di dalam** servercc dan menyambung **keluar** ke Cloudflare; `localhost` dalam rute di atas berarti servercc itu sendiri. Dua mesin berbeda boleh sama-sama memakai port yang sama — tidak ada yang bentrok, karena tidak ada yang dibuka ke jaringan.
+| Hostname | Ke | Untuk |
+|---|---|---|
+| `commandcenter.my.id` | `localhost:4000` | Pelanggan |
+| `app.commandcenter.my.id` | `localhost:4000` | Staf |
+| `api.commandcenter.my.id` | `localhost:8000` | Supabase |
 
-### Kenapa Access tidak dibutuhkan
+Semuanya **Type: HTTP**, bukan HTTPS — layanan di server memang HTTP biasa, TLS diterminasi Cloudflare. Kalau dipilih HTTPS, hasilnya 502.
 
-`proxy.ts` sudah memagari berdasarkan hostname:
+Tidak ada Cloudflare Access di ketiganya. Pembatasannya di dalam aplikasi (`proxy.ts`).
 
-```ts
-if (hostname === "commandcenter.my.id") {
-  if (isPublicRoute) return NextResponse.next({ request });
-  return new NextResponse(null, { status: 404 });
-}
-```
+### Menambah hostname baru
 
-Siapa pun yang membuka `commandcenter.my.id` untuk alamat selain rute publik akan mendapat **404 kosong** — bukan halaman login, bukan petunjuk apa pun.
+Dashboard Cloudflare → **Networks → Tunnels → `servercc-apkt` → Public Hostname → Add**. Catatan DNS dibuat otomatis.
 
-> **Wajib memakai apex `commandcenter.my.id`, bukan subdomain.** Pemeriksaan di kode itu persis (`hostname === "commandcenter.my.id"`). Kalau dipasang di `apkt.commandcenter.my.id`, pagarnya tidak berlaku dan seluruh halaman staf ikut terbuka ke publik.
-
-Staf tidak memakai domain ini — mereka masuk lewat terowongan SSH. Kalau nanti perlu hostname khusus staf, tambahkan subdomain di `up2dntb.my.id` dan arahkan ke `localhost:4000` yang sama; karena hostname-nya berbeda, pagar di atas tidak berlaku dan seluruh aplikasi terbuka di sana.
-
-### Setelah rute aktif
+### Menguji pagar hostname
 
 ```bash
-ssh servercc
-nano /var/www/monitoring-apkt/.env
+# Dari server, tanpa lewat internet:
+curl -H "Host: commandcenter.my.id" -o /dev/null -w "%{http_code}
+" http://localhost:4000/rekap-laporan   # harus 404
+curl -H "Host: commandcenter.my.id" -o /dev/null -w "%{http_code}
+" http://localhost:4000/antrian/x        # harus 200
 ```
+
+> **Pagar itu memeriksa nama host secara persis.** Kalau domain publik suatu saat berganti, konstanta `HOSTNAME_PELANGGAN` di `proxy.ts` **wajib** ikut diganti — kalau terlewat, seluruh halaman staf terbuka ke publik tanpa peringatan apa pun.
+
+### Mengubah alamat
+
+Kalau domain berganti, empat baris di `/var/www/monitoring-apkt/.env`:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://api-apkt.commandcenter.my.id
-NEXT_PUBLIC_APP_URL=https://commandcenter.my.id
-NEXT_PUBLIC_ANTRIAN_BASE_URL=https://commandcenter.my.id
-APP_URL=https://commandcenter.my.id
+NEXT_PUBLIC_SUPABASE_URL=https://api.commandcenter.my.id
+NEXT_PUBLIC_APP_URL=https://app.commandcenter.my.id
+NEXT_PUBLIC_ANTRIAN_BASE_URL=https://commandcenter.my.id   # APEX — link ke pelanggan
+APP_URL=https://app.commandcenter.my.id
 ```
 
-Lalu di `~/supabase-apkt/.env`:
+dan tiga di `~/supabase-apkt/.env`:
 
 ```env
-SUPABASE_PUBLIC_URL=https://api-apkt.commandcenter.my.id
-API_EXTERNAL_URL=https://api-apkt.commandcenter.my.id/auth/v1
-SITE_URL=https://commandcenter.my.id
+SUPABASE_PUBLIC_URL=https://api.commandcenter.my.id
+API_EXTERNAL_URL=https://api.commandcenter.my.id/auth/v1
+SITE_URL=https://app.commandcenter.my.id
 ```
 
-Terakhir:
+Lalu:
 
 ```bash
 cd /var/www/monitoring-apkt && pnpm build && pm2 restart monitoring-apkt --update-env
 cd ~/supabase-apkt && sh run.sh restart
 ```
 
-Build ulang **wajib** untuk yang ini — variabel `NEXT_PUBLIC_*` dipanggang ke dalam bundel browser saat build, tidak dibaca saat jalan.
+Build ulang **wajib** — `NEXT_PUBLIC_*` dipanggang ke bundel browser saat build. Periksa hasilnya:
 
-Setelah domain aktif, terowongan SSH untuk staf tetap berfungsi dan tidak perlu diubah.
+```bash
+grep -rl "localhost" .next/static | wc -l    # harus 0
+```
 
 ## Yang belum beres
 
@@ -263,8 +276,8 @@ Setelah domain aktif, terowongan SSH untuk staf tetap berfungsi dan tidak perlu 
 
 - **ULP Alas memakai ID grup yang sama dengan Ampenan** — laporan Alas akan masuk ke grup Ampenan.
 
-- **Halaman rekap masih dianggap rute publik** di `proxy.ts`, jadi form password-nya terlihat di `commandcenter.my.id`. Kalau rekap memang khusus internal, keluarkan `/rekap-laporan` dan `/rekap-survey` dari `isPublicRoute` untuk domain itu.
-
 - **`/api/*` tidak ikut dipagari hostname** karena dikecualikan di `matcher`. Endpoint-nya terjangkau dari domain publik, tapi tiap route memeriksa auth sendiri dan menjawab 401/403. Risiko rendah.
 
-- **`pnpm-workspace.yaml` belum di-commit** ke repo. Tanpa itu, deploy di mesin baru akan tersandung `ERR_PNPM_IGNORED_BUILDS`.
+- **Data uji masih ada** — beberapa laporan dan piket percobaan. Bersihkan sebelum dipakai sungguhan.
+
+- **Tujuh ULP belum punya operator dengan WhatsApp tertaut**, jadi notifikasi untuk ULP itu belum jalan.
