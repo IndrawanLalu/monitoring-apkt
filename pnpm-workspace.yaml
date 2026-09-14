@@ -1,0 +1,13 @@
+# Izin menjalankan skrip build paket native.
+#
+# pnpm 10+ memindahkan daftar ini dari `pnpm.onlyBuiltDependencies` di
+# package.json ke berkas ini; field lama sudah tidak dibaca lagi. Tanpa berkas
+# ini, `pnpm install` berhenti dengan ERR_PNPM_IGNORED_BUILDS di setiap mesin
+# baru — sempat menghambat pemasangan di servercc, 11 Sep 2026.
+#
+# esbuild dan sharp butuh menautkan binary platformnya saat pasang;
+# unrs-resolver menjalankan napi-postinstall.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
