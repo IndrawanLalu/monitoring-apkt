@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SHIFT_LABEL } from '@/constants'
@@ -74,6 +75,7 @@ function isShiftActive(jamMulai: string, jamSelesai: string): boolean {
 }
 
 export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguList, petugasMaster }: Props) {
+  const router = useRouter()
   const konfirmasi = useKonfirmasi()
   const [piketList, setPiketList] = useState<PiketRow[]>(initial)
   const [namaCC, setNamaCC] = useState('')
@@ -191,6 +193,9 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
         setPiketList((prev) => [...newPikets, ...prev.filter(p => !newIds.has(p.id))])
         setNamaCC('')
         setPetugasAssign(Object.fromEntries(reguList.map((r) => [r.id, ['', '']])))
+        // Dashboard mengambil piket aktif dari server. Tanpa refresh, pindah ke
+        // sana dilayani dari cache navigasi dan piket ini seolah belum ada.
+        router.refresh()
       } else {
         setError('Piket untuk ULP tersebut sudah dibuat.')
       }
@@ -210,6 +215,7 @@ export function PiketClient({ ulps, role, piketList: initial, shiftTypes, reguLi
     if (!ok) return
     await fetch(`/api/piket/${id}`, { method: 'DELETE' })
     setPiketList((prev) => prev.filter((p) => p.id !== id))
+    router.refresh()
   }
 
   return (

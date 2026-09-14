@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
@@ -159,6 +160,7 @@ const emptyValues = (reguId = ''): CreateLaporanInput => ({
 })
 
 export function TambahLaporanModal({ open, onClose, reguList, ulpId, ulpNama, template, defaultReguId }: Props) {
+  const router = useRouter()
   const [values, setValues] = useState<CreateLaporanInput>(() => emptyValues(defaultReguId))
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CreateLaporanInput, string>>>({})
   const [serverError, setServerError] = useState<string | null>(null)
@@ -262,6 +264,11 @@ export function TambahLaporanModal({ open, onClose, reguList, ulpId, ulpNama, te
       })
       window.open(`https://wa.me/${nomorWa}?text=${encodeURIComponent(pesan)}`, '_blank')
     }
+
+    // Ambil ulang data server supaya dashboard menampilkan laporan ini tanpa
+    // perlu reload. Tanpa ini, Next.js melayani halaman lain dari cache navigasi
+    // dan laporan baru seolah tidak pernah ada sampai browser di-reload paksa.
+    router.refresh()
 
     setDone({ values: result.data, namaRegu, magicToken, nomorHpRegu, reguUlpNama })
   }

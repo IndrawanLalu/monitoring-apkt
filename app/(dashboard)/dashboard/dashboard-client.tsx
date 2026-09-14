@@ -52,6 +52,34 @@ export function DashboardClient({ ulpDataList, today }: Props) {
     () => Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList]))
   )
 
+  // Selaraskan state dengan data server yang baru.
+  //
+  // useState hanya memakai nilai awalnya SEKALI, saat komponen pertama dipasang.
+  // Ketika router.refresh() mengambil data baru dari server, props berubah tapi
+  // state lama tetap dipertahankan React — layar tidak berubah sedikit pun.
+  // Itulah sebabnya laporan dan piket baru dulu hanya muncul setelah browser
+  // di-reload paksa.
+  //
+  // Dibandingkan lewat tanda tangan isi, bukan lewat referensi array: props dari
+  // server component menghasilkan array baru setiap render, jadi menaruh
+  // ulpDataList langsung di deps akan memicu penyetelan state tanpa henti.
+  const tandaTanganServer = useMemo(
+    () =>
+      ulpDataList
+        .map((d) => `${d.ulp.id}:${d.laporanList.map((l) => `${l.id}${l.status}${l.updated_at}`).join(',')}`)
+        .join('|'),
+    [ulpDataList],
+  )
+
+  // Pola resmi React untuk "setel ulang state saat props berubah": bandingkan
+  // saat render, bukan lewat useEffect. Lebih cepat satu putaran render, dan
+  // tidak perlu membaca ref saat render.
+  const [sigTerakhir, setSigTerakhir] = useState(tandaTanganServer)
+  if (sigTerakhir !== tandaTanganServer) {
+    setSigTerakhir(tandaTanganServer)
+    setLaporanMap(Object.fromEntries(ulpDataList.map((d) => [d.ulp.id, d.laporanList])))
+  }
+
   const [showTambahLaporan, setShowTambahLaporan] = useState(false)
   const [preselectedReguId, setPreselectedReguId] = useState<string | undefined>(undefined)
   const [updateModal, setUpdateModal] = useState<Laporan | null>(null)
