@@ -1,27 +1,48 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * Hostname yang dipakai PELANGGAN. Alamatnya beredar di riwayat WhatsApp mereka.
+ *
+ * Perbandingannya persis. Kalau suatu saat domain publiknya berganti, nilai di
+ * sini WAJIB ikut diganti — kalau tidak, pagar di bawah berhenti berlaku dan
+ * seluruh halaman staf terbuka ke publik TANPA peringatan apa pun. Staf memakai
+ * hostname lain (dulu `app.commandcenter.my.id`) yang sengaja tidak dipagari.
+ */
+const HOSTNAME_PELANGGAN = "commandcenter.my.id";
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") ?? "";
 
-  // Rute publik (tanpa auth). Dicek DULUAN agar tidak memanggil
-  // supabase.auth.getUser() — 1 round-trip jaringan (~250ms) per request —
-  // untuk halaman yang memang tidak butuh sesi (antrian pelanggan, rekap).
-  const isPublicRoute =
-    pathname.startsWith("/antrian") ||
+  // Satu-satunya rute yang boleh dibuka pelanggan. Dijaga token acak 48
+  // karakter di URL-nya, bukan oleh sesi login.
+  const isRutePelanggan = pathname.startsWith("/antrian");
+
+  // Rute yang tidak butuh sesi login, tapi hanya lewat hostname staf. Halaman
+  // rekap punya gerbang passwordnya sendiri.
+  //
+  // Dicek DULUAN agar tidak memanggil supabase.auth.getUser() — 1 round-trip
+  // jaringan (~250ms) per request — untuk halaman yang memang tidak butuh sesi.
+  const isRuteTanpaLogin =
+    isRutePelanggan ||
     pathname.startsWith("/rekap-laporan") ||
     pathname.startsWith("/rekap-survey");
 
-  // Domain publik commandcenter.my.id: hanya rute publik, sisanya 404.
-  // Tidak perlu validasi auth sama sekali di domain ini.
-  if (hostname === "commandcenter.my.id") {
-    if (isPublicRoute) return NextResponse.next({ request });
+  // Hostname pelanggan: HANYA rute antrian, sisanya 404 kosong — bukan halaman
+  // login, bukan petunjuk apa pun.
+  //
+  // Rekap sengaja TIDAK diloloskan di sini meski tak butuh login: halaman itu
+  // menampilkan PII pelanggan SELURUH ULP (nama, alamat, nomor tiket, isi saran
+  // survey) dan hanya dijaga satu password bersama. Terlalu berharga untuk
+  // dipaparkan di hostname yang alamatnya beredar luas.
+  if (hostname === HOSTNAME_PELANGGAN) {
+    if (isRutePelanggan) return NextResponse.next({ request });
     return new NextResponse(null, { status: 404 });
   }
 
-  // Domain internal: rute publik lolos tanpa validasi auth.
-  if (isPublicRoute) return NextResponse.next({ request });
+  // Hostname staf: rute tanpa login lolos tanpa validasi auth.
+  if (isRuteTanpaLogin) return NextResponse.next({ request });
 
   // --- Mulai sini butuh sesi: baru buat client + validasi user ---
   let supabaseResponse = NextResponse.next({ request });
