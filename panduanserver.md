@@ -132,6 +132,34 @@ Cek tiga hal, urut:
 2. **`ulp.wa_grup_id`** — nomor WhatsApp yang tertaut harus **anggota grup itu**. Kalau bukan, WhatsApp menolak.
 3. **Log** — `pm2 logs monitoring-apkt` lalu cari `[WA] gagal kirim`.
 
+### Log penuh pesan `[WA] rekap gangguan … gagal`
+
+Penjadwal rekap berjalan tiap 3 jam dan mencoba **semua** ULP. Ada dua bunyi yang berbeda artinya — jangan tertukar.
+
+**1. `Tidak ada sesi WhatsApp yang terhubung di gateway untuk ULP ini`**
+
+Wajar, bukan kerusakan. ULP itu belum punya operator dengan WhatsApp tertaut. Akan terus muncul tiap 3 jam sampai operatornya dibuatkan akun dan menautkan nomornya sendiri.
+
+**2. `wa-gateway tidak terjangkau di http://127.0.0.1:3001: HTTP 500`**
+
+Ini **bukan** gateway mati, meski bunyinya begitu. Periksa log gateway:
+
+```bash
+ssh servercc "tail -30 ~/.pm2/logs/wa-gateway-error.log | grep -i forbidden"
+```
+
+Kalau muncul `err: "forbidden"`, artinya WhatsApp menolak pengiriman karena **nomor yang tertaut bukan anggota grup** yang tercatat di `ulp.wa_grup_id`. Perbaikannya bukan di server: masukkan nomor itu ke grup yang bersangkutan, atau ganti `wa_grup_id` ULP tersebut lewat Settings ke grup yang nomornya memang ikut.
+
+Memastikan gateway benar-benar hidup:
+
+```bash
+ssh servercc "pm2 list | grep wa-gateway"
+ssh servercc 'KEY=$(grep -m1 "^WA_GATEWAY_KEY=" /var/www/monitoring-apkt/.env | cut -d= -f2-); curl -s -o /dev/null -w "%{http_code}
+" -H "X-Api-Key: $KEY" http://127.0.0.1:3001/sessions'
+```
+
+`200` berarti gateway sehat dan masalahnya memang di keanggotaan grup.
+
 ### Aplikasi tidak bisa dibuka
 
 ```bash
