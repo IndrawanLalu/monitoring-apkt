@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { gatewayEnabled, gatewayStartSession, waOffline, GatewayUnreachableError, resetCacheSesi, bolehKelolaSesi, PESAN_KELOLA_SESI_DIMATIKAN } from '@/lib/wa/gateway'
+import { gatewayEnabled, gatewaySiapkanSesi, waOffline, GatewayUnreachableError, resetCacheSesi, bolehKelolaSesi, PESAN_KELOLA_SESI_DIMATIKAN } from '@/lib/wa/gateway'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await gatewayStartSession(userId)
+    // gatewaySiapkanSesi, bukan gatewayStartSession: sesi yang sudah ada tapi
+    // berstatus logged_out perlu dibangunkan, bukan "dibuat" ulang — `create()`
+    // di gateway mengembalikannya tanpa menyambung sehingga QR tak pernah muncul.
+    await gatewaySiapkanSesi(userId)
     resetCacheSesi()
   } catch (err) {
     // Jangan tulis status 'loading' kalau gateway-nya sendiri tak terjangkau —

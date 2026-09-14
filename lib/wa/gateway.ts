@@ -158,6 +158,38 @@ export async function gatewayStartSession(
   })
 }
 
+/** Mulai ulang sesi yang sudah terdaftar tapi mati. */
+export async function gatewayReconnectSession(userId: string): Promise<{ id: string; status: string }> {
+  return gwFetch(`/sessions/${sessionIdForUser(userId)}/reconnect`, { method: 'POST' })
+}
+
+/**
+ * Pastikan sesi siap dipakai: dibuat kalau belum ada, dibangunkan kalau sudah
+ * ada tapi mati.
+ *
+ * Dibutuhkan karena `POST /sessions` di gateway "idempoten" dengan cara yang
+ * menjebak — `sessionManager.create()` mengembalikan sesi yang sudah ada TANPA
+ * menyambungkannya ulang. Untuk sesi berstatus `logged_out` (WhatsApp mencabut
+ * tautan dari sisi HP, yang terjadi rutin), tombol Hubungkan jadi tidak
+ * menghasilkan apa pun: tidak ada QR, tidak ada error, tidak ada petunjuk.
+ * Satu-satunya jalan keluar dulu adalah menghapus sesi lewat SSH — tidak mungkin
+ * dilakukan operator ULP.
+ *
+ * Status yang dibiarkan apa adanya: `open` sudah jalan, sedangkan `qr`,
+ * `connecting`, dan `reconnecting` sedang dalam proses — membangunkannya lagi
+ * hanya akan membatalkan QR yang mungkin sedang dipindai orang.
+ */
+export async function gatewaySiapkanSesi(userId: string): Promise<{ id: string; status: string }> {
+  const sessionId = sessionIdForUser(userId)
+  const ada = await gatewayGetSession(sessionId)
+  if (!ada) return gatewayStartSession(userId)
+
+  if (['open', 'qr', 'connecting', 'reconnecting'].includes(ada.status)) {
+    return { id: sessionId, status: ada.status }
+  }
+  return gatewayReconnectSession(userId)
+}
+
 /** Ambil QR (dataURL) + status sesi seorang user (untuk halaman scan APKT). */
 export async function gatewayGetQr(userId: string): Promise<{ qr: string | null; status: string }> {
   return gwFetch(`/sessions/${sessionIdForUser(userId)}/qr`)
@@ -169,7 +201,7 @@ export async function gatewayDeleteSession(userId: string): Promise<void> {
 
 /** Minta pairing code (link via nomor HP). Sesi dimulai dulu kalau belum ada. */
 export async function gatewayRequestPairingCode(userId: string, phone: string): Promise<{ code: string }> {
-  await gatewayStartSession(userId)
+  await gatewaySiapkanSesi(userId)
   const d = await gwFetch(`/sessions/${sessionIdForUser(userId)}/pairing-code`, {
     method: 'POST',
     body: JSON.stringify({ phone }),
